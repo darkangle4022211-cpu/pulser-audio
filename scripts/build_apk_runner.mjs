@@ -47,7 +47,13 @@ function githubRequest(url, options = {}, data = null) {
     }, (res) => {
       // Follow redirects (for artifact zip downloads)
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        return resolve(githubRequest(res.headers.location, options, data));
+        const nextUrl = res.headers.location;
+        const nextOptions = { ...options };
+        if (!nextUrl.includes('api.github.com')) {
+          nextOptions.headers = { ...(options.headers || {}) };
+          delete nextOptions.headers['Authorization'];
+        }
+        return resolve(githubRequest(nextUrl, nextOptions, data));
       }
 
       if (options.downloadTo) {
