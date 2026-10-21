@@ -1,8 +1,8 @@
 {
   "name": "pulser audio",
   "repo": "darkangle4022211-cpu/pulser-audio",
-  "version": "1.1.0",
-  "tag": "v1.1.0",
+  "version": "1.1.2",
+  "tag": "v1.1.2",
   "changelog": "\u2022 Functional 3-Bar Sidebar Lock: Clicking the 3-bar hamburger button locks the sidebar open; selecting any track, playlist, or option closes it instantly\n\u2022 Native Pulsar Flow & Discover: Replaced external YouTube Music webview with ultra-fast native online streaming, vibe radios, and zero CPU/GPU overhead\n\u2022 Self-Learning Taste Engine: Learns from your listening habits, completions, skips, favorites, and playlists to recommend personalized music that gets better the more you listen\n\u2022 YouTube Music 50-Track Similar Radio: Selecting any track instantly generates a continuous 50-song similar queue with infinite auto-play\n\u2022 Pulsar Radar In-App Notifications: Dedicated in-app notification center for new trending hits and AI taste recommendations with 1-click playback (in addition to desktop notifications)\n\u2022 Ultra-Low CPU & GPU Footprint: Hardware-accelerated 60FPS visualizer, single-instance database protection, and zero thermal throttling\n\nIf you're facing a problem, feel free to contact the developer:\nPhone: 03228081409\nEmail: hamza.zafar4022211@gmail.com",
   "support": {
     "message": "If you're facing a problem, feel free to contact the developer:",
@@ -11,22 +11,22 @@
   },
   "platforms": {
     "linux-deb-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.0/pulsar-music-player_1.1.0_amd64.deb",
-      "sha256": "ba718beab59c74a453767a9f07458d59587430df9257169316addc456685cad8",
-      "size": 255579178,
-      "filename": "pulsar-music-player_1.1.0_amd64.deb"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.2/pulsar-music-player_1.1.2_amd64.deb",
+      "sha256": "4bd60d3f29c0394c3e09ec1c48f4f11f353c45480e0cbab8f2a1be700bb397e6",
+      "size": 255580232,
+      "filename": "pulsar-music-player_1.1.2_amd64.deb"
     },
     "win-setup-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.0/Pulsar%20Music%20Player%20Setup%201.1.0.exe",
-      "sha256": "ef358c18bf928c320160127fc0630d639516bb1eb127dc66277a982560007eec",
-      "size": 169987740,
-      "filename": "Pulsar Music Player Setup 1.1.0.exe"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.2/Pulsar.Music.Player.Setup.1.1.2.exe",
+      "sha256": "d3243abcc62492eb20e430e4235d8040b8e9dd03c4235f73f1cb513258e2ade2",
+      "size": 169993149,
+      "filename": "Pulsar Music Player Setup 1.1.2.exe"
     },
     "win-portable-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.0/Pulsar%20Music%20Player%20Portable%201.1.0.exe",
-      "sha256": "1147be7d69214b97b125a3bf924d411c8b7302e4ffa1398c6f9d57f4f75aa5c4",
-      "size": 169745935,
-      "filename": "Pulsar Music Player Portable 1.1.0.exe"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.2/Pulsar.Music.Player.Portable.1.1.2.exe",
+      "sha256": "b972fb2d733d59206b92e22abe98bb14b06b24aab5d585afec5447cf04042740",
+      "size": 169751362,
+      "filename": "Pulsar Music Player Portable 1.1.2.exe"
     }
   }
 }

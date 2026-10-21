@@ -1667,8 +1667,39 @@ class App {
     })();
   }
 
+  _setBufferingState(buffering) {
+    if (!this.playPauseBtn) return;
+    if (buffering) {
+      this.playPauseBtn.classList.add('buffering');
+      if (this.playIcon) this.playIcon.style.display = 'none';
+      if (this.pauseIcon) this.pauseIcon.style.display = 'none';
+      if (!this._bufferingSpinner) {
+        this._bufferingSpinner = document.createElement('div');
+        this._bufferingSpinner.className = 'play-buffering-spinner';
+        this._bufferingSpinner.style.cssText = 'width:18px;height:18px;border:2.5px solid rgba(255,255,255,0.25);border-top-color:#8b5cf6;border-radius:50%;animation:spin 0.75s linear infinite;display:inline-block;';
+      }
+      if (!this.playPauseBtn.contains(this._bufferingSpinner)) {
+        this.playPauseBtn.appendChild(this._bufferingSpinner);
+      }
+      this._bufferingSpinner.style.display = 'inline-block';
+    } else {
+      this.playPauseBtn.classList.remove('buffering');
+      if (this._bufferingSpinner) this._bufferingSpinner.style.display = 'none';
+      const isPlaying = audioEngine.isPlaying();
+      if (this.playIcon) this.playIcon.style.display = isPlaying ? 'none' : 'block';
+      if (this.pauseIcon) this.pauseIcon.style.display = isPlaying ? 'block' : 'none';
+    }
+  }
+
   async _playTrack(track, restartRadio = true) {
     if (!track) return;
+
+    // Prevent duplicate triggers if already resolving this exact track
+    if (this._isResolvingStream && this._resolvingTrackId === track.id) {
+      this._showToast(`Still loading "${track.title}", please wait a moment...`, 'info');
+      return;
+    }
+
     this.activeTrack = track;
     const requestId = ++this._playRequestId;
 
@@ -1717,17 +1748,31 @@ class App {
     } else if (track.filePath && isLocalAbsolutePath(track.filePath)) {
       src = toPulsarAudioUrl(track.filePath);
     } else if (track.isOnline && track.audioUrl) {
-      if (track.source === 'youtube' || track.audioUrl.includes('youtube.com') || track.audioUrl.includes('youtu.be')) {
+      if (track.source === 'youtube' || track.source === 'ytmusic' || track.audioUrl.includes('youtube.com') || track.audioUrl.includes('youtu.be')) {
         const nativeApi = window.pulsarNative || window.electronAPI;
         if (nativeApi && typeof nativeApi.getStreamUrl === 'function') {
+          this._isResolvingStream = true;
+          this._resolvingTrackId = track.id;
+          this._setBufferingState(true);
+          this._showToast(`Connecting audio stream for "${track.title}"...`, 'info');
           try {
             const res = await nativeApi.getStreamUrl(track.audioUrl);
-            src = (res && res.success && res.streamUrl) ? res.streamUrl : track.audioUrl;
+            if (res && res.success && res.streamUrl) {
+              src = res.streamUrl;
+            } else {
+              console.warn('Stream URL resolution failed:', res?.error);
+              src = null;
+            }
           } catch (e) {
-            src = track.audioUrl;
+            console.warn('Stream resolution exception:', e);
+            src = null;
+          } finally {
+            this._isResolvingStream = false;
+            this._resolvingTrackId = null;
+            this._setBufferingState(false);
           }
         } else {
-          src = track.audioUrl;
+          src = null;
         }
       } else {
         src = track.audioUrl;
@@ -1760,6 +1805,10 @@ class App {
     if (src) {
       await audioEngine.loadAndPlay(src, 0, track.duration);
       if (this._playRequestId !== requestId) return;
+
+      if (track.isOnline) {
+        this._showToast(`Streaming "${track.title}" by ${track.artist}`, 'success');
+      }
 
       this._updateActiveRowHighlight();
       this._loadLyricsForTrack(track);
@@ -1801,11 +1850,15 @@ class App {
       this._prewarmUpcomingTracks();
     } else {
       console.warn('Audio source unavailable for track:', track.title);
-      this._showToast(`Audio for "${track.title}" is unavailable. Please re-add the file.`, 'error');
+      this._showToast(`Audio for "${track.title}" is currently unavailable. Please try another track.`, 'error');
     }
   }
 
   _togglePlayPause() {
+    if (this._isResolvingStream) {
+      this._showToast('Audio stream is loading, please wait a moment...', 'info');
+      return;
+    }
     if (!this.activeTrack) {
       const list = this._getCurrentViewTracks();
       if (list.length > 0) this._playTrackFromList(list, 0);
@@ -4285,7 +4338,6 @@ class App {
   async _playOnlineTrack(track, restartRadio = true) {
     if (!track) return;
     await this._playTrack(track, restartRadio);
-    this._showToast(`Streaming "${track.title}" by ${track.artist}`, 'info');
   }
 
   async _downloadOnlineTrack(track) {

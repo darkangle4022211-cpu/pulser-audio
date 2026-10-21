@@ -9,21 +9,21 @@ const projectRoot = path.resolve(__dirname, '..');
 
 const TOKEN = process.env.GITHUB_TOKEN || process.env.GITHUB_PERSONAL_ACCESS_TOKEN;
 const REPO = "darkangle4022211-cpu/pulser-audio";
-const TAG = "v1.1.0";
-const RELEASE_NAME = "v1.1.0 - Windows & Linux Production Release";
-const RELEASE_BODY = `### Pulsar Music Player v1.1.0 Production Release
+const TAG = "v1.1.2";
+const RELEASE_NAME = "v1.1.2 - Windows & Linux Production Release";
+const RELEASE_BODY = `### Pulsar Music Player v1.1.2 Production Release
 
 #### 🚀 What's New:
-- **Windows (.exe) Full Support:** Complete native Windows installer and portable standalone executables.
-- **Bundled Standalone Windows Binaries:** Includes standalone \`yt-dlp.exe\` and \`ffmpeg.exe\` (0 Python or external setup needed on Windows).
-- **Fast Native InnerTube Stream Resolver (~300ms):** Zero external processes required for direct audio playback.
-- **Linux & Windows Cross-Platform Audio:** Robust offline playback and custom protocol handling for Windows drive letters (\`C:\\...\`) and Linux paths.
+- **Windows Online Playback Fix:** Streamlined YouTube stream resolution timeout (30s) and multi-candidate binary resolution so online playback starts smoothly on Windows without PyInstaller timeouts.
+- **Buffering & Loading UX:** Added responsive buffering indicators on the player and eliminated redundant click aborts when selecting songs.
+- **In-App Auto-Updater:** Full cross-platform support for seamless in-app updating on both Windows (.exe) and Linux (.deb).
+- **Bundled Standalone Binaries:** Includes standalone \`yt-dlp.exe\` and \`ffmpeg.exe\` (0 Python or external setup needed on Windows).
 - **10-Band EQ & 60FPS Audio Visualizer:** High-fidelity hardware-accelerated audio processing.
 
 #### 📦 Downloads:
-- **Windows Installer:** \`Pulsar Music Player Setup 1.1.0.exe\`
-- **Windows Standalone Portable:** \`Pulsar Music Player Portable 1.1.0.exe\`
-- **Linux Debian Package:** \`pulsar-music-player_1.1.0_amd64.deb\`
+- **Windows Installer:** \`Pulsar Music Player Setup 1.1.2.exe\`
+- **Windows Standalone Portable:** \`Pulsar Music Player Portable 1.1.2.exe\`
+- **Linux Debian Package:** \`pulsar-music-player_1.1.2_amd64.deb\`
 `;
 
 function githubRequest(url, options = {}, data = null) {
@@ -168,16 +168,16 @@ async function main() {
   // Assets to upload
   const assets = [
     {
-      name: 'Pulsar Music Player Setup 1.1.0.exe',
-      path: path.join(projectRoot, 'dist-electron', 'Pulsar Music Player Setup 1.1.0.exe')
+      name: 'Pulsar Music Player Setup 1.1.2.exe',
+      path: path.join(projectRoot, 'dist-electron', 'Pulsar Music Player Setup 1.1.2.exe')
     },
     {
-      name: 'Pulsar Music Player Portable 1.1.0.exe',
-      path: path.join(projectRoot, 'dist-electron', 'Pulsar Music Player Portable 1.1.0.exe')
+      name: 'Pulsar Music Player Portable 1.1.2.exe',
+      path: path.join(projectRoot, 'dist-electron', 'Pulsar Music Player Portable 1.1.2.exe')
     },
     {
-      name: 'pulsar-music-player_1.1.0_amd64.deb',
-      path: path.join(projectRoot, 'dist-electron', 'pulsar-music-player_1.1.0_amd64.deb')
+      name: 'pulsar-music-player_1.1.2_amd64.deb',
+      path: path.join(projectRoot, 'dist-electron', 'pulsar-music-player_1.1.2_amd64.deb')
     },
     {
       name: 'update.json',

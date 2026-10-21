@@ -412,10 +412,12 @@ function getDownloadDirectory() {
 function getYtDlpPath() {
   if (process.platform === 'win32') {
     const candidates = [
-      path.join(process.resourcesPath || '', 'app.asar.unpacked', 'bin', 'win', 'yt-dlp.exe'),
       path.join(process.resourcesPath || '', 'bin', 'win', 'yt-dlp.exe'),
+      path.join(path.dirname(process.execPath || ''), 'resources', 'bin', 'win', 'yt-dlp.exe'),
+      path.join(process.resourcesPath || '', 'app.asar.unpacked', 'bin', 'win', 'yt-dlp.exe'),
       path.join(__dirname, '../bin/win/yt-dlp.exe'),
       path.join(__dirname, 'bin/win/yt-dlp.exe'),
+      path.join(process.cwd(), 'resources', 'bin', 'win', 'yt-dlp.exe'),
       path.join(process.cwd(), 'bin', 'win', 'yt-dlp.exe')
     ];
     for (const c of candidates) {
@@ -443,10 +445,12 @@ function getYtDlpPath() {
 function getFfmpegPath() {
   if (process.platform === 'win32') {
     const candidates = [
-      path.join(process.resourcesPath || '', 'app.asar.unpacked', 'bin', 'win', 'ffmpeg.exe'),
       path.join(process.resourcesPath || '', 'bin', 'win', 'ffmpeg.exe'),
+      path.join(path.dirname(process.execPath || ''), 'resources', 'bin', 'win', 'ffmpeg.exe'),
+      path.join(process.resourcesPath || '', 'app.asar.unpacked', 'bin', 'win', 'ffmpeg.exe'),
       path.join(__dirname, '../bin/win/ffmpeg.exe'),
       path.join(__dirname, 'bin/win/ffmpeg.exe'),
+      path.join(process.cwd(), 'resources', 'bin', 'win', 'ffmpeg.exe'),
       path.join(process.cwd(), 'bin', 'win', 'ffmpeg.exe')
     ];
     for (const c of candidates) {
@@ -1089,11 +1093,12 @@ function resolveWithCliFallback(url) {
   const ytdlp = getYtDlpPath();
   const streamArgs = [
     '-g',
-    '-f', '140/251/ba/b',
+    '-f', '140/251/ba/18/b',
     '--no-warnings',
     '--no-playlist',
     '--no-check-certificates',
     '--extractor-args', 'youtube:player_client=android',
+    '--socket-timeout', '10',
     url
   ];
 
@@ -1101,19 +1106,28 @@ function resolveWithCliFallback(url) {
     execFile(
       ytdlp,
       streamArgs,
-      { timeout: 10000 },
-      (err, stdout) => {
+      {
+        timeout: 30000,
+        windowsHide: true,
+        maxBuffer: 10 * 1024 * 1024
+      },
+      (err, stdout, stderr) => {
         if (err || !stdout || !stdout.trim()) {
+          console.warn('[resolveWithCliFallback] yt-dlp error:', err ? err.message : stderr);
           return resolve({ success: false, error: err ? err.message : 'No stream URL found' });
         }
-        const streamUrl = stdout.trim().split('\n')[0];
-        resolve({ success: true, streamUrl });
+        const lines = stdout.trim().split('\n').map(l => l.trim()).filter(l => l.startsWith('http'));
+        if (lines.length > 0) {
+          resolve({ success: true, streamUrl: lines[0] });
+        } else {
+          resolve({ success: false, error: 'No valid streaming HTTP URL in stdout' });
+        }
       }
     );
   });
 }
 
-// Fast Native InnerTube Direct Stream Resolver (~200-300ms, 0 external processes, pure Node.js)
+// Quick direct InnerTube probe (~300ms, fast path for public unenciphered tracks)
 async function resolveDirectStream(videoIdOrUrl) {
   let videoId = videoIdOrUrl;
   if (!videoId) return { success: false, error: 'Empty video identifier' };
@@ -1128,93 +1142,60 @@ async function resolveDirectStream(videoIdOrUrl) {
     return { success: false, error: 'Invalid video ID format' };
   }
 
-  const clients = [
-    {
-      context: {
-        client: {
-          clientName: 'IOS',
-          clientVersion: '21.02.3',
-          deviceMake: 'Apple',
-          deviceModel: 'iPhone16,2',
-          osName: 'iPhone',
-          osVersion: '18.3.2.22D82',
-          hl: 'en'
-        }
-      },
-      ua: 'com.google.ios.youtube/21.02.3 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)'
-    },
-    {
-      context: {
-        client: {
-          clientName: 'ANDROID_VR',
-          clientVersion: '1.65.10',
-          deviceMake: 'Oculus',
-          deviceModel: 'Quest 3',
-          androidSdkVersion: 32,
-          osName: 'Android',
-          osVersion: '12L',
-          hl: 'en'
-        }
-      },
-      ua: 'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip'
-    }
-  ];
+  const client = {
+    clientName: 'ANDROID_VR',
+    clientVersion: '1.65.10',
+    deviceMake: 'Oculus',
+    deviceModel: 'Quest 3',
+    androidSdkVersion: 32,
+    osName: 'Android',
+    osVersion: '12L',
+    hl: 'en'
+  };
+  const ua = 'com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip';
 
-  for (const c of clients) {
-    try {
-      const postData = JSON.stringify({
-        videoId: videoId,
-        context: c.context
-      });
-
-      const result = await new Promise((resolve) => {
-        const req = https.request('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'User-Agent': c.ua,
-            'Content-Length': Buffer.byteLength(postData)
-          },
-          timeout: 4000
-        }, (res) => {
-          let body = '';
-          res.on('data', chunk => body += chunk);
-          res.on('end', () => {
-            try {
-              const json = JSON.parse(body);
-              if (json.playabilityStatus?.status !== 'OK') {
-                return resolve({ success: false, error: json.playabilityStatus?.reason || 'Not playable' });
-              }
-              const formats = [...(json.streamingData?.formats || []), ...(json.streamingData?.adaptiveFormats || [])];
-              const audioFormats = formats.filter(f => f.url && f.mimeType && f.mimeType.startsWith('audio/'));
-              // Prefer high-quality itag 140 (m4a ~128kbps) or 251 (opus ~160kbps)
-              const target = audioFormats.find(f => f.itag === 140) ||
-                             audioFormats.find(f => f.itag === 251) ||
-                             audioFormats[0];
-              if (target && target.url) {
-                return resolve({ success: true, streamUrl: target.url, itag: target.itag });
-              }
-              resolve({ success: false, error: 'No direct audio format found' });
-            } catch (e) {
-              resolve({ success: false, error: e.message });
+  try {
+    const postData = JSON.stringify({ videoId, context: { client } });
+    return await new Promise((resolve) => {
+      const req = https.request('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': ua,
+          'Content-Length': Buffer.byteLength(postData)
+        },
+        timeout: 2500
+      }, (res) => {
+        let body = '';
+        res.on('data', chunk => body += chunk);
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(body);
+            if (json.playabilityStatus?.status !== 'OK') {
+              return resolve({ success: false, error: json.playabilityStatus?.reason || 'Not playable directly' });
             }
-          });
+            const formats = [...(json.streamingData?.formats || []), ...(json.streamingData?.adaptiveFormats || [])];
+            const audioFormats = formats.filter(f => f.url && f.mimeType && f.mimeType.startsWith('audio/'));
+            const target = audioFormats.find(f => f.itag === 140) ||
+                           audioFormats.find(f => f.itag === 251) ||
+                           audioFormats[0];
+            if (target && target.url) {
+              return resolve({ success: true, streamUrl: target.url, itag: target.itag });
+            }
+            resolve({ success: false, error: 'No direct audio format found' });
+          } catch (e) {
+            resolve({ success: false, error: e.message });
+          }
         });
-        req.on('timeout', () => { req.destroy(); resolve({ success: false, error: 'Timeout' }); });
-        req.on('error', (err) => resolve({ success: false, error: err.message }));
-        req.write(postData);
-        req.end();
       });
-
-      if (result.success && result.streamUrl) {
-        return result;
-      }
-    } catch (e) {
-      // Try next client context
-    }
+      req.on('timeout', () => { req.destroy(); resolve({ success: false, error: 'Timeout' }); });
+      req.on('error', (err) => resolve({ success: false, error: err.message }));
+      req.write(postData);
+      req.end();
+    });
+  } catch (e) {
+    return { success: false, error: e.message };
   }
-
-  return { success: false, error: 'InnerTube player extraction unavailable' };
 }
 
 // Extract direct high-speed audio stream URL for playback with instant memory cache
@@ -1234,21 +1215,17 @@ ipcMain.handle('get-stream-url', async (event, urlOrId) => {
       return { success: true, streamUrl: streamUrlCache.get(url) };
     }
 
-    // 1. Fast Native InnerTube Direct Stream Resolver (~200-300ms, 0 external processes, pure Node.js)
+    // 1. Fast Native InnerTube Probe (~300ms, instantaneous for open tracks)
     let res = await resolveDirectStream(url);
 
-    // 2. Platform-aware fallback if direct request encounters rate limiting or cipher
+    // 2. Linux: Fast warm Python daemon (~1.5s)
+    if ((!res || !res.success || !res.streamUrl) && process.platform === 'linux') {
+      res = await resolveWithDaemon(url);
+    }
+
+    // 3. Windows or Linux daemon fallback: bundled standalone yt-dlp
     if (!res || !res.success || !res.streamUrl) {
-      if (process.platform === 'linux') {
-        // Warm Python daemon on Linux (~1.6s)
-        res = await resolveWithDaemon(url);
-        if (!res || !res.success || !res.streamUrl) {
-          res = await resolveWithCliFallback(url);
-        }
-      } else {
-        // Windows: Do NOT require Python. Fallback directly to bundled bin/win/yt-dlp.exe
-        res = await resolveWithCliFallback(url);
-      }
+      res = await resolveWithCliFallback(url);
     }
 
     if (res && res.success && res.streamUrl) {
@@ -2065,7 +2042,10 @@ async function checkOnlineUpdate() {
         const directJsonUrl = `https://github.com/${GITHUB_REPO}/releases/latest/download/update.json`;
         const directManifest = await fetchJson(directJsonUrl);
         if (directManifest && directManifest.version) {
-          const debUrl = directManifest.platforms?.['linux-deb-x64']?.url || '';
+          const isWin = process.platform === 'win32';
+          const platformKey = isWin ? 'win-setup-x64' : 'linux-deb-x64';
+          const platformData = directManifest.platforms?.[platformKey] || directManifest.platforms?.['linux-deb-x64'];
+          const downloadUrl = platformData?.url || '';
           if (compareVersions(directManifest.version, APP_VERSION) > 0) {
             return {
               updateAvailable: true,
@@ -2074,9 +2054,9 @@ async function checkOnlineUpdate() {
               releaseNotes: (directManifest.changelog && directManifest.changelog.trim())
                 ? directManifest.changelog.trim()
                 : 'Performance optimization, hardware acceleration, and stability improvements.',
-              downloadUrl: debUrl,
-              filename: directManifest.platforms?.['linux-deb-x64']?.filename || 'pulsar-music-player_latest_amd64.deb',
-              size: directManifest.platforms?.['linux-deb-x64']?.size || 0
+              downloadUrl,
+              filename: platformData?.filename || (isWin ? 'Pulsar Music Player Setup.exe' : 'pulsar-music-player_latest_amd64.deb'),
+              size: platformData?.size || 0
             };
           }
         }
@@ -2085,7 +2065,10 @@ async function checkOnlineUpdate() {
           const rawJsonUrl = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/update.json`;
           const rawManifest = await fetchJson(rawJsonUrl);
           if (rawManifest && rawManifest.version) {
-            const debUrl = rawManifest.platforms?.['linux-deb-x64']?.url || '';
+            const isWin = process.platform === 'win32';
+            const platformKey = isWin ? 'win-setup-x64' : 'linux-deb-x64';
+            const platformData = rawManifest.platforms?.[platformKey] || rawManifest.platforms?.['linux-deb-x64'];
+            const downloadUrl = platformData?.url || '';
             if (compareVersions(rawManifest.version, APP_VERSION) > 0) {
               return {
                 updateAvailable: true,
@@ -2094,9 +2077,9 @@ async function checkOnlineUpdate() {
                 releaseNotes: (rawManifest.changelog && rawManifest.changelog.trim())
                   ? rawManifest.changelog.trim()
                   : 'Performance optimization, hardware acceleration, and stability improvements.',
-                downloadUrl: debUrl,
-                filename: rawManifest.platforms?.['linux-deb-x64']?.filename || 'pulsar-music-player_latest_amd64.deb',
-                size: rawManifest.platforms?.['linux-deb-x64']?.size || 0
+                downloadUrl,
+                filename: platformData?.filename || (isWin ? 'Pulsar Music Player Setup.exe' : 'pulsar-music-player_latest_amd64.deb'),
+                size: platformData?.size || 0
               };
             }
           }
@@ -2114,9 +2097,13 @@ async function checkOnlineUpdate() {
       return { updateAvailable: false, currentVersion: APP_VERSION, latestVersion };
     }
 
-    // Find .deb asset
-    const debAsset = (rel.assets || []).find(a => a.name && a.name.endsWith('.deb'));
-    const downloadUrl = debAsset ? debAsset.browser_download_url : (rel.html_url || '');
+    // Select platform asset (.exe on Windows, .deb on Linux)
+    const isWin = process.platform === 'win32';
+    const targetAsset = isWin
+      ? ((rel.assets || []).find(a => a.name && a.name.endsWith('.exe') && (a.name.includes('Setup') || a.name.includes('setup'))) ||
+         (rel.assets || []).find(a => a.name && a.name.endsWith('.exe')))
+      : (rel.assets || []).find(a => a.name && a.name.endsWith('.deb'));
+    const downloadUrl = targetAsset ? targetAsset.browser_download_url : (rel.html_url || '');
 
     return {
       updateAvailable: true,
@@ -2124,8 +2111,8 @@ async function checkOnlineUpdate() {
       latestVersion,
       releaseNotes: (rel.body && rel.body.trim()) ? rel.body.trim() : 'Performance optimization, hardware acceleration, and stability improvements.',
       downloadUrl,
-      filename: debAsset ? debAsset.name : `pulsar-music-player_${latestVersion}_amd64.deb`,
-      size: debAsset ? debAsset.size : 0
+      filename: targetAsset ? targetAsset.name : (isWin ? `Pulsar Music Player Setup ${latestVersion}.exe` : `pulsar-music-player_${latestVersion}_amd64.deb`),
+      size: targetAsset ? targetAsset.size : 0
     };
   } catch (err) {
     return { updateAvailable: false, error: err.message };
@@ -2222,7 +2209,8 @@ ipcMain.handle('check-for-updates', async () => {
 
 ipcMain.handle('download-update', async (event, downloadUrl) => {
   if (!downloadUrl) return { success: false, error: 'No download URL' };
-  const destPath = path.join(os.tmpdir(), 'pulsar_latest.deb');
+  const ext = process.platform === 'win32' ? '.exe' : '.deb';
+  const destPath = path.join(os.tmpdir(), `pulsar_latest${ext}`);
   try {
     await downloadFileWithProgress(downloadUrl, destPath, (progress) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2235,10 +2223,38 @@ ipcMain.handle('download-update', async (event, downloadUrl) => {
   }
 });
 
-ipcMain.handle('install-update', async (event, customDebPath) => {
-  const debPath = customDebPath || path.join(os.tmpdir(), 'pulsar_latest.deb');
-  if (!fs.existsSync(debPath)) {
+ipcMain.handle('install-update', async (event, customInstallerPath) => {
+  const isWin = process.platform === 'win32';
+  const ext = isWin ? '.exe' : '.deb';
+  const installerPath = customInstallerPath || path.join(os.tmpdir(), `pulsar_latest${ext}`);
+  if (!fs.existsSync(installerPath)) {
     return { success: false, error: 'Installer package not found' };
+  }
+
+  if (isWin) {
+    try {
+      const child = spawn(installerPath, [], {
+        detached: true,
+        stdio: 'ignore'
+      });
+      child.unref();
+
+      if (tray && !tray.isDestroyed()) {
+        try { tray.destroy(); } catch (_) {}
+        tray = null;
+      }
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.destroy();
+      }
+
+      setTimeout(() => {
+        app.exit(0);
+      }, 300);
+
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   }
 
   const currentPid = process.pid;
