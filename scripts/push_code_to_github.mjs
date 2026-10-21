@@ -57,8 +57,8 @@ function apiRequest(endpoint, method = 'GET', data = null) {
   });
 }
 
-export async function pushFilesToGitHub(commitMessage = 'feat: Add flagship YouTube Music Android mobile UI, Capacitor bridge, and cloud APK workflow') {
-  console.log(`=== Pushing source code commit to ${OWNER}/${REPO}:${BRANCH} ===`);
+export async function pushFilesToGitHub(commitMessage = 'feat: Full source code commit for Vite & Android APK cloud build') {
+  console.log(`=== Pushing complete source tree to ${OWNER}/${REPO}:${BRANCH} ===`);
 
   // 1. Get latest commit SHA on main
   const ref = await apiRequest(`/repos/${OWNER}/${REPO}/git/refs/heads/${BRANCH}`);
@@ -70,20 +70,38 @@ export async function pushFilesToGitHub(commitMessage = 'feat: Add flagship YouT
   const baseTreeSha = commit.tree.sha;
   console.log(`Base tree SHA: ${baseTreeSha}`);
 
-  // 3. Files to commit
+  // 3. Complete list of all source files
   const filePaths = [
     'package.json',
     'capacitor.config.json',
+    'vite.config.js',
     'index.html',
+    'update.json',
+    'src/audio/engine.js',
+    'src/audio/visualizer.js',
+    'src/playlists/manager.js',
+    'src/services/onlineMusic.js',
+    'src/services/tasteEngine.js',
+    'src/storage/db.js',
+    'src/styles/components.css',
+    'src/styles/main.css',
     'src/styles/mobile.css',
-    'src/ui/mobileUI.js',
+    'src/styles/variables.css',
     'src/ui/app.js',
+    'src/ui/hotkeys.js',
+    'src/ui/mobileUI.js',
+    'src/utils/bluetoothMedia.js',
+    'src/utils/id3Parser.js',
+    'src/utils/id3Writer.js',
+    'src/utils/lrcParser.js',
     'src/utils/platformBridge.js',
     'custom-android/AndroidManifest.xml',
     'custom-android/MainActivity.java',
     '.github/workflows/build-android-apk.yml',
     'scripts/build_apk.sh',
-    'scripts/push_code_to_github.mjs'
+    'scripts/build_apk_runner.mjs',
+    'scripts/push_code_to_github.mjs',
+    'scripts/qa_verify_apk_and_regression.mjs'
   ];
 
   const tree = [];
@@ -98,6 +116,8 @@ export async function pushFilesToGitHub(commitMessage = 'feat: Add flagship YouT
         content: content
       });
       console.log(`Included ${relPath} (${(content.length / 1024).toFixed(1)} KB)`);
+    } else {
+      console.warn(`File not found: ${relPath}`);
     }
   }
 

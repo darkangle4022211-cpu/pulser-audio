@@ -1,32 +1,31 @@
 {
   "name": "pulser audio",
   "repo": "darkangle4022211-cpu/pulser-audio",
-  "version": "1.1.2",
-  "tag": "v1.1.2",
-  "changelog": "\u2022 Functional 3-Bar Sidebar Lock: Clicking the 3-bar hamburger button locks the sidebar open; selecting any track, playlist, or option closes it instantly\n\u2022 Native Pulsar Flow & Discover: Replaced external YouTube Music webview with ultra-fast native online streaming, vibe radios, and zero CPU/GPU overhead\n\u2022 Self-Learning Taste Engine: Learns from your listening habits, completions, skips, favorites, and playlists to recommend personalized music that gets better the more you listen\n\u2022 YouTube Music 50-Track Similar Radio: Selecting any track instantly generates a continuous 50-song similar queue with infinite auto-play\n\u2022 Pulsar Radar In-App Notifications: Dedicated in-app notification center for new trending hits and AI taste recommendations with 1-click playback (in addition to desktop notifications)\n\u2022 Ultra-Low CPU & GPU Footprint: Hardware-accelerated 60FPS visualizer, single-instance database protection, and zero thermal throttling\n\nIf you're facing a problem, feel free to contact the developer:\nPhone: 03228081409\nEmail: hamza.zafar4022211@gmail.com",
+  "version": "1.1.3",
+  "tag": "v1.1.3",
+  "changelog": "\u2022 Offline Downloaded Tracks Playback: Fixed offline playback for downloaded songs in All Tracks using native file fetch and IndexedDB blob backup\n\u2022 Ultra-Low CPU & GPU Footprint: Removed heavy convolution blur shaders and constant animations (<0.5% idle load)\n\u2022 Resilient & Fast Auto-Updater: Added HTTP Range resume (.part) with 10-retry auto-reconnect on network drops\n\u2022 Fixed Update UI Percentage: Fixed progress bar percentage sync bug\n\u2022 Windows Update Installation Fixed: Resolved Windows installer spawn error\n\nIf you're facing a problem, feel free to contact the developer:\nEmail: hamza.zafar4022211@gmail.com",
   "support": {
     "message": "If you're facing a problem, feel free to contact the developer:",
-    "phone": "03228081409",
     "email": "hamza.zafar4022211@gmail.com"
   },
   "platforms": {
     "linux-deb-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.2/pulsar-music-player_1.1.2_amd64.deb",
-      "sha256": "4bd60d3f29c0394c3e09ec1c48f4f11f353c45480e0cbab8f2a1be700bb397e6",
-      "size": 255580232,
-      "filename": "pulsar-music-player_1.1.2_amd64.deb"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.3/pulsar-music-player_1.1.3_amd64.deb",
+      "sha256": "384e7cf51fd7f6a3695a0d5cddc99272befadc572a6edd278e7ebd9a9ea25bde",
+      "size": 255580954,
+      "filename": "pulsar-music-player_1.1.3_amd64.deb"
     },
     "win-setup-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.2/Pulsar.Music.Player.Setup.1.1.2.exe",
-      "sha256": "d3243abcc62492eb20e430e4235d8040b8e9dd03c4235f73f1cb513258e2ade2",
-      "size": 169993149,
-      "filename": "Pulsar Music Player Setup 1.1.2.exe"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.3/Pulsar.Music.Player.Setup.1.1.3.exe",
+      "sha256": "cba847fc38178f3684094279cfff94b4ff73a024ec6469f597f8c7ae3871446f",
+      "size": 169991351,
+      "filename": "Pulsar Music Player Setup 1.1.3.exe"
     },
     "win-portable-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.2/Pulsar.Music.Player.Portable.1.1.2.exe",
-      "sha256": "b972fb2d733d59206b92e22abe98bb14b06b24aab5d585afec5447cf04042740",
-      "size": 169751362,
-      "filename": "Pulsar Music Player Portable 1.1.2.exe"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.3/Pulsar.Music.Player.Portable.1.1.3.exe",
+      "sha256": "fb223788dc3d33aad4dcaebc00008d4a4bb22cf28c9a755fa6e9ff8603efcb80",
+      "size": 169749567,
+      "filename": "Pulsar Music Player Portable 1.1.3.exe"
     }
   }
 }
