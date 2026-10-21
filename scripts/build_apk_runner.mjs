@@ -24,10 +24,13 @@ function githubRequest(url, options = {}, data = null) {
     const fullUrl = url.startsWith('http') ? url : `https://api.github.com${url}`;
     const parsed = new URL(fullUrl);
 
+    const isGitHubApi = parsed.hostname === 'api.github.com';
     const headers = {
       'User-Agent': 'PulsarAudio-APK-Builder',
-      'Authorization': `Bearer ${TOKEN}`,
-      'Accept': 'application/vnd.github.v3+json',
+      ...(isGitHubApi && !options.noAuth ? {
+        'Authorization': `Bearer ${TOKEN}`,
+        'Accept': 'application/vnd.github.v3+json'
+      } : {}),
       ...(options.headers || {})
     };
 
@@ -50,6 +53,7 @@ function githubRequest(url, options = {}, data = null) {
         const nextUrl = res.headers.location;
         const nextOptions = { ...options };
         if (!nextUrl.includes('api.github.com')) {
+          nextOptions.noAuth = true;
           nextOptions.headers = { ...(options.headers || {}) };
           delete nextOptions.headers['Authorization'];
         }
@@ -57,6 +61,12 @@ function githubRequest(url, options = {}, data = null) {
       }
 
       if (options.downloadTo) {
+        if (res.statusCode >= 400) {
+          let errBody = '';
+          res.on('data', chunk => errBody += chunk);
+          res.on('end', () => reject(new Error(`Download failed with status ${res.statusCode}: ${errBody}`)));
+          return;
+        }
         const fileStream = fs.createWriteStream(options.downloadTo);
         res.pipe(fileStream);
         fileStream.on('finish', () => {
