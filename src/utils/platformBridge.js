@@ -53,6 +53,7 @@ class PlatformBridge {
       getSimilarSongs: (data) => this.getSimilarSongs(data),
       getStreamUrl: (urlOrId) => this.getStreamUrl(urlOrId),
       prewarmStreamUrl: (urlOrId) => this.prewarmStreamUrl(urlOrId),
+      invalidateStream: (urlOrId) => this.invalidateStream(urlOrId),
 
       // Storage & Downloads
       downloadOnlineTrack: (trackData) => this.downloadOnlineTrack(trackData),
@@ -432,9 +433,58 @@ class PlatformBridge {
     this.getStreamUrl(cleanId).catch(() => {});
   }
 
+  invalidateStream(urlOrId) {
+    let videoId = String(urlOrId || '').trim();
+    if (videoId.includes('v=')) {
+      const m = videoId.match(/v=([a-zA-Z0-9_-]{11})/);
+      if (m) videoId = m[1];
+    } else if (videoId.includes('youtu.be/')) {
+      const m = videoId.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+      if (m) videoId = m[1];
+    } else if (videoId.startsWith('yt_')) {
+      videoId = videoId.slice(3);
+    }
+    if (videoId) {
+      this.streamCache.delete(videoId);
+      this.prewarmedIds.delete(videoId);
+    }
+  }
+
   // --------------------------------------------------------------------------
   // 3. Public Music/Pulsar Downloads/ Storage Integration
   // --------------------------------------------------------------------------
+
+  _normalizeFsPath(filePath) {
+    if (!filePath) return { relPath: '', absPath: '', uri: '' };
+    let clean = String(filePath).trim();
+    if (clean.startsWith('file://')) {
+      clean = clean.replace(/^file:\/\//, '');
+    }
+    try {
+      if (clean.includes('%')) clean = decodeURI(clean);
+    } catch (_) {}
+
+    if (clean.startsWith('/storage/emulated/0/')) {
+      const rel = clean.replace(/^\/storage\/emulated\/0\/?/, '');
+      return {
+        relPath: rel,
+        absPath: `/storage/emulated/0/${rel}`,
+        uri: `file:///storage/emulated/0/${encodeURI(rel)}`
+      };
+    } else if (clean.startsWith('/')) {
+      return {
+        relPath: clean.replace(/^\//, ''),
+        absPath: clean,
+        uri: `file://${encodeURI(clean)}`
+      };
+    } else {
+      return {
+        relPath: clean,
+        absPath: `/storage/emulated/0/${clean}`,
+        uri: `file:///storage/emulated/0/${encodeURI(clean)}`
+      };
+    }
+  }
 
   async downloadOnlineTrack(trackData) {
     if (!trackData) return { success: false, error: 'Empty track data' };
@@ -457,10 +507,16 @@ class PlatformBridge {
         streamUrl = streamRes.streamUrl;
       }
 
-      // 2. Download bytes via fetch arrayBuffer
-      const audioRes = await fetch(streamUrl);
-      if (!audioRes.ok) throw new Error(`Stream download HTTP ${audioRes.status}`);
-      const audioBuffer = await audioRes.arrayBuffer();
+      // 2. Fetch or natively download audio stream
+      let audioBuffer = null;
+      try {
+        const audioRes = await fetch(streamUrl);
+        if (audioRes.ok) {
+          audioBuffer = await audioRes.arrayBuffer();
+        }
+      } catch (fetchErr) {
+        console.warn('Direct fetch notice (will attempt native Capacitor download):', fetchErr);
+      }
 
       // 3. Save to Public Android Shared Storage if Capacitor Filesystem is available
       let finalFilePath = `/storage/emulated/0/${relativePath}`;
@@ -468,21 +524,45 @@ class PlatformBridge {
       if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
         const Filesystem = window.Capacitor.Plugins.Filesystem;
         try {
-          // Convert arrayBuffer to base64
-          const base64Data = this._arrayBufferToBase64(audioBuffer);
-          await Filesystem.writeFile({
-            path: relativePath,
-            data: base64Data,
+          await Filesystem.mkdir({
+            path: this.downloadFolder,
             directory: 'EXTERNAL_STORAGE',
             recursive: true
-          });
+          }).catch(() => {});
+
+          if (audioBuffer) {
+            const base64Data = this._arrayBufferToBase64(audioBuffer);
+            await Filesystem.writeFile({
+              path: relativePath,
+              data: base64Data,
+              directory: 'EXTERNAL_STORAGE',
+              recursive: true
+            });
+          } else if (typeof Filesystem.downloadFile === 'function') {
+            await Filesystem.downloadFile({
+              url: streamUrl,
+              path: relativePath,
+              directory: 'EXTERNAL_STORAGE',
+              recursive: true
+            });
+            try {
+              const readRes = await Filesystem.readFile({
+                path: relativePath,
+                directory: 'EXTERNAL_STORAGE'
+              });
+              if (readRes && readRes.data) {
+                audioBuffer = this._base64ToArrayBuffer(readRes.data);
+              }
+            } catch (_) {}
+          }
+
           const uriRes = await Filesystem.getUri({
             path: relativePath,
             directory: 'EXTERNAL_STORAGE'
           });
           if (uriRes && uriRes.uri) finalFilePath = uriRes.uri;
         } catch (fsErr) {
-          console.warn('Filesystem write notice (saving to local IndexedDB):', fsErr);
+          console.warn('Filesystem write notice:', fsErr);
         }
       }
 
@@ -490,8 +570,8 @@ class PlatformBridge {
         success: true,
         filePath: finalFilePath,
         fileName,
-        size: audioBuffer.byteLength,
-        buffer: audioBuffer,
+        size: audioBuffer ? audioBuffer.byteLength : 4000000,
+        buffer: audioBuffer || new ArrayBuffer(0),
         coverDataUrl: trackData.coverUrl || null
       };
     } catch (err) {
@@ -516,7 +596,7 @@ class PlatformBridge {
       const entries = res.files || [];
       for (const entry of entries) {
         const name = typeof entry === 'string' ? entry : entry.name;
-        if (!name || (!name.endsWith('.mp3') && !name.endsWith('.m4a') && !name.endsWith('.ogg'))) continue;
+        if (!name || !/\.(mp3|m4a|ogg|flac|wav|aac|opus|webm)$/i.test(name)) continue;
 
         let title = name.replace(/\.[a-zA-Z0-9]+$/, '');
         let artist = 'Unknown Artist';
@@ -545,12 +625,23 @@ class PlatformBridge {
     if (!window.Capacitor || !window.Capacitor.Plugins || !window.Capacitor.Plugins.Filesystem) {
       return false;
     }
+    const Filesystem = window.Capacitor.Plugins.Filesystem;
+    const norm = this._normalizeFsPath(filePath);
     try {
-      await window.Capacitor.Plugins.Filesystem.stat({
-        path: filePath,
-        directory: 'EXTERNAL_STORAGE'
-      });
-      return true;
+      if (norm.relPath) {
+        try {
+          await Filesystem.stat({
+            path: norm.relPath,
+            directory: 'EXTERNAL_STORAGE'
+          });
+          return true;
+        } catch (_) {}
+      }
+      if (norm.absPath) {
+        await Filesystem.stat({ path: norm.absPath });
+        return true;
+      }
+      return false;
     } catch (_) {
       return false;
     }
@@ -560,13 +651,27 @@ class PlatformBridge {
     if (!window.Capacitor || !window.Capacitor.Plugins || !window.Capacitor.Plugins.Filesystem) {
       return { success: true };
     }
+    const Filesystem = window.Capacitor.Plugins.Filesystem;
+    const norm = this._normalizeFsPath(filePath);
     try {
-      await window.Capacitor.Plugins.Filesystem.deleteFile({
-        path: filePath,
-        directory: 'EXTERNAL_STORAGE'
-      });
+      if (norm.relPath) {
+        try {
+          await Filesystem.deleteFile({
+            path: norm.relPath,
+            directory: 'EXTERNAL_STORAGE'
+          });
+          return { success: true };
+        } catch (_) {}
+      }
+      if (norm.absPath) {
+        await Filesystem.deleteFile({
+          path: norm.absPath
+        });
+        return { success: true };
+      }
       return { success: true };
     } catch (err) {
+      console.warn('deletePhysicalFile notice:', err);
       return { success: false, error: err.message };
     }
   }
@@ -576,43 +681,23 @@ class PlatformBridge {
   // --------------------------------------------------------------------------
 
   selectAudioFiles() {
-    return new Promise((resolve) => {
-      const input = document.getElementById('fileInput');
-      if (!input) return resolve([]);
-      const handler = () => {
-        input.removeEventListener('change', handler);
-        const files = Array.from(input.files || []).map(f => ({
-          name: f.name,
-          path: f.name,
-          size: f.size,
-          type: f.type,
-          fileRef: f
-        }));
-        resolve(files);
-      };
-      input.addEventListener('change', handler, { once: true });
-      input.click();
-    });
+    return Promise.resolve({ canceled: true, files: [] });
   }
 
-  selectAudioFolder() {
-    return new Promise((resolve) => {
-      const input = document.getElementById('folderInput');
-      if (!input) return resolve([]);
-      const handler = () => {
-        input.removeEventListener('change', handler);
-        const files = Array.from(input.files || []).map(f => ({
-          name: f.name,
-          path: f.webkitRelativePath || f.name,
-          size: f.size,
-          type: f.type,
-          fileRef: f
-        }));
-        resolve(files);
-      };
-      input.addEventListener('change', handler, { once: true });
-      input.click();
-    });
+  async selectAudioFolder() {
+    if (this.isAndroid && window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem) {
+      const scanRes = await this.scanDownloadFolder();
+      if (scanRes && scanRes.success && scanRes.files) {
+        if (window.app && typeof window.app._syncDownloadFolderTracks === 'function') {
+          await window.app._syncDownloadFolderTracks();
+          if (window.app._showToast) {
+            window.app._showToast(`Scanned and synced ${scanRes.files.length} songs from Music/Pulsar Downloads`, 'success');
+          }
+        }
+        return { canceled: false, files: [] };
+      }
+    }
+    return Promise.resolve({ canceled: true, files: [] });
   }
 
   // --------------------------------------------------------------------------
@@ -630,6 +715,7 @@ class PlatformBridge {
           { src: info.coverUrl, sizes: '512x512', type: 'image/jpeg' }
         ] : []
       });
+      navigator.mediaSession.playbackState = 'playing';
     } catch (err) {
       console.warn('MediaSession metadata error:', err);
     }
@@ -637,25 +723,57 @@ class PlatformBridge {
 
   _setupMediaSessionHandlers() {
     if (typeof navigator === 'undefined' || !navigator.mediaSession) return;
-    const playPauseBtn = document.getElementById('playPauseBtn');
-    const prevBtn = document.getElementById('prevBtn');
-    const nextBtn = document.getElementById('nextBtn');
 
     navigator.mediaSession.setActionHandler('play', () => {
       const audio = document.querySelector('audio');
-      if (audio && audio.paused) playPauseBtn?.click();
+      if (audio && audio.paused) {
+        document.getElementById('playPauseBtn')?.click();
+        navigator.mediaSession.playbackState = 'playing';
+      }
     });
     navigator.mediaSession.setActionHandler('pause', () => {
       const audio = document.querySelector('audio');
-      if (audio && !audio.paused) playPauseBtn?.click();
+      if (audio && !audio.paused) {
+        document.getElementById('playPauseBtn')?.click();
+        navigator.mediaSession.playbackState = 'paused';
+      }
     });
-    navigator.mediaSession.setActionHandler('previoustrack', () => prevBtn?.click());
-    navigator.mediaSession.setActionHandler('nexttrack', () => nextBtn?.click());
+    navigator.mediaSession.setActionHandler('previoustrack', () => document.getElementById('prevBtn')?.click());
+    navigator.mediaSession.setActionHandler('nexttrack', () => document.getElementById('nextBtn')?.click());
+
+    try {
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        const audio = document.querySelector('audio');
+        if (audio && details.seekTime !== undefined) {
+          audio.currentTime = details.seekTime;
+        }
+      });
+    } catch (_) {}
+
+    try {
+      navigator.mediaSession.setActionHandler('seekforward', (details) => {
+        const audio = document.querySelector('audio');
+        if (audio) audio.currentTime = Math.min(audio.duration || 0, audio.currentTime + (details.seekOffset || 10));
+      });
+    } catch (_) {}
+
+    try {
+      navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+        const audio = document.querySelector('audio');
+        if (audio) audio.currentTime = Math.max(0, audio.currentTime - (details.seekOffset || 10));
+      });
+    } catch (_) {}
+
+    const syncPlaybackState = () => {
+      const audio = document.querySelector('audio');
+      if (!audio || !navigator.mediaSession) return;
+      navigator.mediaSession.playbackState = audio.paused ? 'paused' : 'playing';
+    };
+    window.addEventListener('play', syncPlaybackState, true);
+    window.addEventListener('pause', syncPlaybackState, true);
   }
 
   _setupAudioErrorGuard() {
-    // If Web Audio throws a CORS or security exception on remote CDN streams,
-    // ensure audio can continue directly without freezing
     window.addEventListener('error', (e) => {
       if (e.message && e.message.includes('MediaElementAudioSourceNode')) {
         console.warn('AudioSource cross-origin notice handled cleanly.');
@@ -687,6 +805,17 @@ class PlatformBridge {
       binary += String.fromCharCode(bytes[i]);
     }
     return window.btoa(binary);
+  }
+
+  _base64ToArrayBuffer(base64) {
+    const cleanBase64 = base64.includes(',') ? base64.split(',')[1] : base64;
+    const binary = window.atob(cleanBase64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes.buffer;
   }
 }
 

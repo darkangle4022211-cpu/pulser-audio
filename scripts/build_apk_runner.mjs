@@ -125,11 +125,11 @@ async function main() {
     await sleep(4000);
     const runsRes = await githubRequest(`/repos/${OWNER}/${REPO}/actions/workflows/${WORKFLOW_FILE}/runs?per_page=5`);
     const runs = runsRes.body?.workflow_runs || [];
-    const recentRun = runs.find(r => (Date.now() - new Date(r.created_at).getTime()) < 300000);
+    const recentRun = runs.find(r => r.head_sha === commitSha || (new Date(r.created_at).getTime() >= (startTime - 15000)));
 
     if (recentRun) {
       runId = recentRun.id;
-      console.log(`Found active workflow run #${runId} (Status: ${recentRun.status}, Conclusion: ${recentRun.conclusion})`);
+      console.log(`Found active workflow run #${runId} (Status: ${recentRun.status}, Conclusion: ${recentRun.conclusion || 'pending'}, Head SHA: ${recentRun.head_sha})`);
       break;
     }
     console.log(`[Attempt ${attempt}/20] Waiting for run to register...`);

@@ -89,6 +89,11 @@
   }
 
   .app-brand span {
+    font-size: 0 !important;
+  }
+
+  .app-brand span::after {
+    content: "Pulsar" !important;
     font-size: 17px !important;
     font-weight: 700 !important;
     letter-spacing: -0.3px !important;
@@ -98,6 +103,28 @@
     display: flex !important;
     align-items: center !important;
     gap: 4px !important;
+  }
+
+  /* YT Music Header Right Button Ordering & 24x24 crisp sizing */
+  #mobileSearchBtn {
+    order: 1 !important;
+  }
+
+  #notificationToggleBtn {
+    order: 2 !important;
+  }
+
+  #themeToggleBtn {
+    order: 3 !important;
+  }
+
+  #mobileMenuBtn {
+    order: 4 !important;
+  }
+
+  .app-header .header-right .icon-btn svg {
+    width: 24px !important;
+    height: 24px !important;
   }
 
   /* Hide Desktop Window Controls (- □ ×) and sidebar trigger on mobile */
@@ -111,8 +138,8 @@
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 36px !important;
-    height: 36px !important;
+    width: 38px !important;
+    height: 38px !important;
     border-radius: 50% !important;
     background: transparent !important;
     border: none !important;
@@ -121,8 +148,8 @@
   }
 
   .icon-btn.mobile-only-btn svg {
-    width: 22px !important;
-    height: 22px !important;
+    width: 24px !important;
+    height: 24px !important;
   }
 
   /* ------------------------------------------------------------------------
@@ -248,6 +275,20 @@
     color: #0b0b0e !important;
     font-weight: 700 !important;
     border-color: #ffffff !important;
+  }
+
+  #chipTrending {
+    font-size: 0 !important;
+  }
+
+  #chipTrending::after {
+    content: "Trending" !important;
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+  }
+
+  #chipTrending.active::after {
+    font-weight: 700 !important;
   }
 
   /* ------------------------------------------------------------------------

@@ -44,7 +44,16 @@ public class MainActivity extends BridgeActivity {
         // 3. Register Noisy Audio Receiver (Headphones disconnected / Bluetooth lost)
         registerNoisyReceiver();
 
-        // 4. Handle Hardware Back Button
+        // 4. Request runtime permissions for Android 13+ (POST_NOTIFICATIONS, READ_MEDIA_AUDIO)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            String[] permissions = {
+                "android.permission.POST_NOTIFICATIONS",
+                "android.permission.READ_MEDIA_AUDIO"
+            };
+            requestPermissions(permissions, 101);
+        }
+
+        // 5. Handle Hardware Back Button
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -52,9 +61,12 @@ public class MainActivity extends BridgeActivity {
                 if (webView != null) {
                     webView.evaluateJavascript(
                         "(function() {" +
-                        "  var eqModal = document.getElementById('eqModal');" +
-                        "  if (eqModal && eqModal.classList.contains('active')) {" +
-                        "    document.getElementById('closeEqBtn')?.click(); return true;" +
+                        "  var activeModal = document.querySelector('.modal-backdrop.active');" +
+                        "  if (activeModal) {" +
+                        "    var closeBtn = activeModal.querySelector('.modal-close-btn, .icon-btn, #closeEqBtn');" +
+                        "    if (closeBtn) { closeBtn.click(); return true; }" +
+                        "    activeModal.classList.remove('active');" +
+                        "    return true;" +
                         "  }" +
                         "  var npStage = document.getElementById('nowPlayingStage');" +
                         "  if (npStage && npStage.classList.contains('mobile-active')) {" +
@@ -150,7 +162,11 @@ public class MainActivity extends BridgeActivity {
         };
 
         IntentFilter filter = new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY);
-        registerReceiver(noisyAudioReceiver, filter);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(noisyAudioReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+        } else {
+            registerReceiver(noisyAudioReceiver, filter);
+        }
     }
 
     @Override

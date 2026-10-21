@@ -242,6 +242,17 @@ try {
     const qpMetaHidden = isHidden(document.getElementById('flowSectionMeta'));
     const qpRefreshTextHidden = isHidden(document.querySelector('#flowRefreshBtn span'));
 
+    // Header ordering and branding checks
+    const brandSpan = document.querySelector('.app-brand span');
+    const brandPseudo = brandSpan ? window.getComputedStyle(brandSpan, '::after').content : '';
+    const brandIsPulsar = brandPseudo.includes('Pulsar');
+
+    const searchOrder = parseInt(window.getComputedStyle(mobileSearchBtn).order, 10) || 0;
+    const notifOrder = parseInt(window.getComputedStyle(notifToggleBtn).order, 10) || 0;
+    const themeOrder = parseInt(window.getComputedStyle(themeToggleBtn).order, 10) || 0;
+    const menuOrder = parseInt(window.getComputedStyle(mobileMenuBtn).order, 10) || 0;
+    const headerOrderCorrect = (searchOrder === 1 && notifOrder === 2 && themeOrder === 3 && menuOrder === 4);
+
     // SVG icon vectors
     const allSvgIcons = Array.from(document.querySelectorAll('svg'));
     const crispSvgs = allSvgIcons.filter(s => s.getAttribute('viewBox') === '0 0 24 24');
@@ -253,6 +264,8 @@ try {
       mobileMenuBtnVisible: isVisible(mobileMenuBtn),
       themeToggleBtnVisible: isVisible(themeToggleBtn),
       notifToggleBtnVisible: isVisible(notifToggleBtn),
+      headerOrderCorrect,
+      brandIsPulsar,
       mobileNavVisible: isNavBottom && navHeight >= 50 && navHeight <= 65,
       navTabsCount,
       miniPlayerVisible: isPlayerFixed && playerHeight >= 55 && playerHeight <= 65,
@@ -267,10 +280,12 @@ try {
 
   recordTest('Mobile 390x844', 'Zero Horizontal Viewport Overflow', mobileLayoutChecks.zeroHorizontalOverflow);
   recordTest('Mobile 390x844', 'Desktop Window Buttons (- □ ×) Hidden on Mobile', mobileLayoutChecks.windowControlsHidden);
-  recordTest('Mobile 390x844', 'Compact YT Music Header Icons (Search, Menu, Theme, Notifications)',
+  recordTest('Mobile 390x844', 'Compact YT Music Header Icons (Search, Notifications, Theme, Menu)',
     mobileLayoutChecks.mobileSearchBtnVisible && mobileLayoutChecks.mobileMenuBtnVisible &&
-    mobileLayoutChecks.themeToggleBtnVisible && mobileLayoutChecks.notifToggleBtnVisible
+    mobileLayoutChecks.themeToggleBtnVisible && mobileLayoutChecks.notifToggleBtnVisible &&
+    mobileLayoutChecks.headerOrderCorrect
   );
+  recordTest('Mobile 390x844', 'Mobile Brand Header Displays "Pulsar"', mobileLayoutChecks.brandIsPulsar);
   recordTest('Mobile 390x844', '4-Tab Bottom Navigation Bar (56px fixed)',
     mobileLayoutChecks.mobileNavVisible && mobileLayoutChecks.navTabsCount === 4,
     `Tabs: ${mobileLayoutChecks.navTabsCount}`
@@ -353,6 +368,45 @@ try {
   });
 
   recordTest('Full Player Interaction', 'Full Screen Stage Collapses Back to Mini-Player', fullPlayerClosed);
+
+  // -------------------------------------------------------------------------
+  // 5. Android PlatformBridge & Storage Verification
+  // -------------------------------------------------------------------------
+  console.log('\n--- 5. Android PlatformBridge & Storage Verification ---');
+  const bridgeChecks = await pageMobile.evaluate(() => {
+    const bridge = window.pulsarNative || window.electronAPI;
+    const hasBridge = !!bridge;
+    const hasGetStreamUrl = typeof bridge?.getStreamUrl === 'function';
+    const hasPrewarm = typeof bridge?.prewarmStreamUrl === 'function';
+    const hasInvalidate = typeof bridge?.invalidateStream === 'function';
+    const hasDownload = typeof bridge?.downloadOnlineTrack === 'function';
+    const hasScan = typeof bridge?.scanDownloadFolder === 'function';
+    const hasDelete = typeof bridge?.deletePhysicalFile === 'function';
+    const hasCheckExists = typeof bridge?.checkFileExists === 'function';
+    const hasMediaSession = !!navigator.mediaSession;
+
+    return {
+      hasBridge,
+      hasGetStreamUrl,
+      hasPrewarm,
+      hasInvalidate,
+      hasDownload,
+      hasScan,
+      hasDelete,
+      hasCheckExists,
+      hasMediaSession
+    };
+  });
+
+  recordTest('Platform Bridge', 'PlatformBridge & InnerTube Stream Methods Exposed',
+    bridgeChecks.hasBridge && bridgeChecks.hasGetStreamUrl && bridgeChecks.hasPrewarm && bridgeChecks.hasInvalidate
+  );
+  recordTest('Platform Bridge', 'Public Storage Download, Scan, Exists & Delete Methods Exposed',
+    bridgeChecks.hasDownload && bridgeChecks.hasScan && bridgeChecks.hasDelete && bridgeChecks.hasCheckExists
+  );
+  recordTest('Platform Bridge', 'Lockscreen MediaSession Controls Initialized',
+    bridgeChecks.hasMediaSession
+  );
 
   await pageMobile.close();
   await browser.close();

@@ -19,6 +19,9 @@ import { initMobileUI } from './mobileUI.js';
 // Cross-platform URL converter for pulsar-audio:// scheme (supports Linux & Windows drive letters)
 function toPulsarAudioUrl(filePath) {
   if (!filePath || typeof filePath !== 'string') return '';
+  if (typeof window !== 'undefined' && window.Capacitor && typeof window.Capacitor.convertFileSrc === 'function') {
+    return window.Capacitor.convertFileSrc(filePath);
+  }
   const normalized = filePath.replace(/\\/g, '/');
   const pathPart = normalized.startsWith('/') ? normalized : '/' + normalized;
   return 'pulsar-audio://' + encodeURI(pathPart).replace(/#/g, '%23').replace(/\?/g, '%3F');
@@ -838,6 +841,31 @@ class App {
         tasteEngine.recordTrackCompleted(this.activeTrack, audioEngine.getDuration());
       }
       this._playNext();
+    };
+
+    audioEngine.onError = async (e) => {
+      console.warn('Playback error caught:', e);
+      if (this.activeTrack && this.activeTrack.isOnline) {
+        const nativeApi = window.pulsarNative || window.electronAPI;
+        if (nativeApi && typeof nativeApi.invalidateStream === 'function') {
+          nativeApi.invalidateStream(this.activeTrack.audioUrl || this.activeTrack.id);
+        }
+        if (!this._isRefreshingExpiredStream) {
+          this._isRefreshingExpiredStream = true;
+          try {
+            const res = await (nativeApi && nativeApi.getStreamUrl ? nativeApi.getStreamUrl(this.activeTrack.audioUrl || this.activeTrack.id) : null);
+            if (res && res.success && res.streamUrl) {
+              const resumeTime = audioEngine.audio ? (audioEngine.audio.currentTime || 0) : 0;
+              await audioEngine.loadAndPlay(res.streamUrl, resumeTime, this.activeTrack.duration);
+              return;
+            }
+          } catch (refreshErr) {
+            console.warn('Auto-refresh expired URL error:', refreshErr);
+          } finally {
+            this._isRefreshingExpiredStream = false;
+          }
+        }
+      }
     };
 
     // Close Context Menu on Global Click
@@ -1664,7 +1692,11 @@ class App {
           const nextLocal = this._findLocalDownloadedMatch(nextTrack);
           if (!nextLocal) {
             try {
-              await nativeApi.getStreamUrl(nextTrack.audioUrl);
+              if (typeof nativeApi.prewarmStreamUrl === 'function') {
+                nativeApi.prewarmStreamUrl(nextTrack.audioUrl);
+              } else {
+                await nativeApi.getStreamUrl(nextTrack.audioUrl);
+              }
             } catch (e) {}
           }
         }
@@ -3927,7 +3959,7 @@ class App {
     if (totalResults === 0) {
       container.innerHTML = `
         <div style="padding: 48px 24px; text-align: center; color: var(--text-secondary); width: 100%; display: flex; flex-direction: column; align-items: center;">
-          <div style="font-size:36px; margin-bottom:12px;">🔍</div>
+          <div style="margin-bottom:12px; color:var(--text-muted);"><svg viewBox="0 0 24 24" width="40" height="40" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></div>
           <h3 style="font-size:18px; font-weight:700; color:var(--text-primary); margin-bottom:6px;">No songs found for "${this._escapeHtml(query)}"</h3>
           <p style="font-size:13px; color:var(--text-muted); margin-bottom:16px;">Check your spelling or try searching for another artist, song title, or vibe keyword.</p>
           <button id="searchEmptyClearBtn" class="btn btn-primary" style="padding:8px 20px; font-size:13px; border-radius:20px;">Clear Search & Browse</button>
