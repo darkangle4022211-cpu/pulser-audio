@@ -1,0 +1,1061 @@
+/* ==========================================================================
+   PULSAR MUSIC PLAYER - FLAGSHIP YOUTUBE MUSIC MOBILE UI
+   Scoped exclusively for Mobile Screens (<= 768px) and body.platform-mobile
+   Zero modifications or regression to Desktop (> 768px) layout.
+   ========================================================================== */
+
+/* Hide mobile-specific elements on desktop screens by default */
+@media (min-width: 769px) {
+  .mobile-only-btn,
+  .mobile-bottom-nav,
+  .mobile-mini-player-progress,
+  .mobile-full-player-controls,
+  .mobile-now-playing-sheet,
+  .mobile-search-overlay {
+    display: none !important;
+  }
+}
+
+/* ==========================================================================
+   MOBILE VIEWPORT & BASE TOUCH POLISH (<= 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+  :root {
+    --mobile-header-h: 52px;
+    --mobile-nav-h: 56px;
+    --mobile-mini-player-h: 60px;
+  }
+
+  *, *::before, *::after {
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  html, body {
+    overflow-x: hidden !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    touch-action: pan-y !important;
+  }
+
+  #app {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    width: 100vw !important;
+    overflow: hidden !important;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  }
+
+  /* ------------------------------------------------------------------------
+     1. COMPACT YTM TOP HEADER
+     ------------------------------------------------------------------------ */
+  .app-header {
+    height: var(--mobile-header-h) !important;
+    min-height: var(--mobile-header-h) !important;
+    padding: 0 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    background: rgba(15, 15, 19, 0.95) !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+    z-index: 800 !important;
+    position: relative !important;
+  }
+
+  .app-header .header-left {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  .app-brand {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+  }
+
+  .app-brand .brand-icon {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  .app-brand .brand-icon svg {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  .app-brand span {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    letter-spacing: -0.3px !important;
+  }
+
+  .app-header .header-right {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+  }
+
+  /* Hide Desktop Window Controls (- □ ×) and sidebar trigger on mobile */
+  .window-controls,
+  .sidebar-edge-trigger,
+  #sidebarToggleBtn {
+    display: none !important;
+  }
+
+  .icon-btn.mobile-only-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 50% !important;
+    background: transparent !important;
+    border: none !important;
+    color: var(--text-primary, #ffffff) !important;
+    cursor: pointer !important;
+  }
+
+  .icon-btn.mobile-only-btn svg {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  /* ------------------------------------------------------------------------
+     2. MOBILE NAVIGATION DRAWER & APP BODY
+     ------------------------------------------------------------------------ */
+  .app-body {
+    flex: 1 !important;
+    display: flex !important;
+    position: relative !important;
+    overflow: hidden !important;
+    height: calc(100dvh - var(--mobile-header-h) - var(--mobile-nav-h) - var(--mobile-mini-player-h)) !important;
+  }
+
+  .app-sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: 82vw !important;
+    max-width: 310px !important;
+    z-index: 1200 !important;
+    background: rgba(18, 18, 24, 0.98) !important;
+    backdrop-filter: blur(24px) !important;
+    -webkit-backdrop-filter: blur(24px) !important;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.6) !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1) !important;
+    overflow-y: auto !important;
+    padding-top: env(safe-area-inset-top, 16px) !important;
+    padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 20px) !important;
+  }
+
+  .app-sidebar.mobile-open {
+    transform: translateX(0) !important;
+  }
+
+  .mobile-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 1199;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+
+  .mobile-drawer-backdrop.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .app-content {
+    flex: 1 !important;
+    width: 100vw !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding-bottom: 24px !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* ------------------------------------------------------------------------
+     3. HORIZONTAL SWIPEABLE MOOD PILLS & YTM SEARCH
+     ------------------------------------------------------------------------ */
+  .flow-stage-header.ytm-stage-header {
+    padding: 10px 12px 6px 12px !important;
+    background: transparent !important;
+    position: relative !important;
+  }
+
+  .flow-search-center-wrap {
+    width: 100% !important;
+    margin-bottom: 8px !important;
+  }
+
+  .ytm-search-box {
+    width: 100% !important;
+    height: 42px !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-radius: 22px !important;
+    padding: 0 12px !important;
+  }
+
+  .ytm-search-input {
+    font-size: 14px !important;
+  }
+
+  .flow-filter-chips {
+    display: flex !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+    gap: 8px !important;
+    padding: 4px 4px 10px 4px !important;
+  }
+
+  .flow-filter-chips::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .flow-chip {
+    flex-shrink: 0 !important;
+    height: 34px !important;
+    padding: 0 16px !important;
+    background: rgba(255, 255, 255, 0.07) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 18px !important;
+    color: #e5e5ea !important;
+    font-size: 13.5px !important;
+    font-weight: 500 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all 0.2s ease !important;
+  }
+
+  .flow-chip.active {
+    background: #ffffff !important;
+    color: #0b0b0e !important;
+    font-weight: 700 !important;
+    border-color: #ffffff !important;
+  }
+
+  /* ------------------------------------------------------------------------
+     4. "QUICK PICKS" — 4-ROW HORIZONTAL SWIPEABLE STACKS WITH PEEK
+     ------------------------------------------------------------------------ */
+  .flow-quick-picks-section {
+    padding: 8px 0 16px 0 !important;
+    overflow: hidden !important;
+  }
+
+  .flow-section-header {
+    padding: 0 16px 10px 16px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+  }
+
+  .flow-section-title {
+    font-size: 19px !important;
+    font-weight: 800 !important;
+    color: #ffffff !important;
+    letter-spacing: -0.4px !important;
+  }
+
+  /* Hide long grey section subtitle descriptions on mobile */
+  .flow-section-meta,
+  #flowSectionMeta {
+    display: none !important;
+  }
+
+  .flow-section-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  #flowPlayAllBtn {
+    height: 32px !important;
+    padding: 0 14px !important;
+    border-radius: 16px !important;
+    background: rgba(255, 255, 255, 0.12) !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
+    font-size: 12.5px !important;
+    font-weight: 600 !important;
+  }
+
+  /* Icon-only SVG Refresh button (no text on mobile) */
+  #flowRefreshBtn {
+    width: 32px !important;
+    height: 32px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    color: #ffffff !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  #flowRefreshBtn svg {
+    margin: 0 !important;
+  }
+
+  #flowRefreshBtn span {
+    display: none !important;
+  }
+
+  /* 4-Row Grid with 86vw columns so ~14% of the next stack peeks from right */
+  .flow-quick-picks-grid {
+    display: grid !important;
+    grid-template-rows: repeat(4, 60px) !important;
+    grid-auto-flow: column !important;
+    grid-auto-columns: 86vw !important;
+    overflow-x: auto !important;
+    scroll-snap-type: x mandatory !important;
+    gap: 8px 14px !important;
+    padding: 0 16px 12px 16px !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  .flow-quick-picks-grid::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .quick-pick-card {
+    scroll-snap-align: start !important;
+    display: flex !important;
+    align-items: center !important;
+    height: 60px !important;
+    width: 100% !important;
+    padding: 4px 6px !important;
+    box-sizing: border-box !important;
+    gap: 12px !important;
+    border-radius: 8px !important;
+    background: transparent !important;
+    border: none !important;
+  }
+
+  .quick-pick-cover-wrap {
+    width: 52px !important;
+    height: 52px !important;
+    min-width: 52px !important;
+    border-radius: 6px !important;
+    overflow: hidden !important;
+    position: relative !important;
+  }
+
+  .quick-pick-img {
+    width: 52px !important;
+    height: 52px !important;
+    object-fit: cover !important;
+    border-radius: 6px !important;
+  }
+
+  .quick-pick-info {
+    flex: 1 !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    gap: 2px !important;
+  }
+
+  .quick-pick-title {
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.2 !important;
+  }
+
+  .quick-pick-artist {
+    font-size: 13px !important;
+    color: #9ca3af !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.2 !important;
+  }
+
+  .quick-pick-dl-btn {
+    width: 36px !important;
+    height: 36px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    border: none !important;
+    background: transparent !important;
+    color: #9ca3af !important;
+    cursor: pointer !important;
+  }
+
+  /* ------------------------------------------------------------------------
+     5. "LISTEN AGAIN" & "MIXED FOR YOU" CAROUSELS
+     ------------------------------------------------------------------------ */
+  .flow-cards-carousel,
+  #flowListenAgainList,
+  .flow-playlists-grid,
+  #flowPlaylistsGrid {
+    display: flex !important;
+    overflow-x: auto !important;
+    gap: 14px !important;
+    padding: 0 16px 14px 16px !important;
+    scroll-snap-type: x mandatory !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  .flow-cards-carousel::-webkit-scrollbar,
+  .flow-playlists-grid::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .online-playlist-card,
+  .online-track-card,
+  .flow-album-card {
+    scroll-snap-align: start !important;
+    flex: 0 0 150px !important;
+    width: 150px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .online-playlist-card img,
+  .online-track-card img,
+  .flow-album-card img,
+  .playlist-cover-art {
+    width: 150px !important;
+    height: 150px !important;
+    border-radius: 10px !important;
+    object-fit: cover !important;
+  }
+
+  /* ------------------------------------------------------------------------
+     6. "ALL TRACKS" & PLAYLISTS TABLE ON MOBILE (60px Touch Rows)
+     ------------------------------------------------------------------------ */
+  .view-hero {
+    flex-direction: column !important;
+    align-items: center !important;
+    text-align: center !important;
+    padding: 16px 14px !important;
+    gap: 14px !important;
+  }
+
+  .hero-cover {
+    width: 130px !important;
+    height: 130px !important;
+  }
+
+  .hero-title {
+    font-size: 22px !important;
+    margin-bottom: 4px !important;
+  }
+
+  .hero-actions {
+    justify-content: center !important;
+    width: 100% !important;
+  }
+
+  .tracks-container {
+    padding: 0 8px !important;
+  }
+
+  /* Hide Table Header & Columns #, ALBUM, DURATION on mobile */
+  .tracks-table thead,
+  .tracks-table th:nth-child(1),
+  .tracks-table td:nth-child(1),
+  .tracks-table th:nth-child(3),
+  .tracks-table td:nth-child(3),
+  .tracks-table th:nth-child(4),
+  .tracks-table td:nth-child(4) {
+    display: none !important;
+  }
+
+  .tracks-table {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  .tracks-table tbody {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    width: 100% !important;
+  }
+
+  .tracks-table tr {
+    display: flex !important;
+    align-items: center !important;
+    height: 60px !important;
+    padding: 0 8px !important;
+    border-radius: 8px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    background: transparent !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
+  }
+
+  .tracks-table td:nth-child(2) {
+    flex: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+  }
+
+  .track-cell-title {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .track-thumb,
+  .track-row-cover {
+    width: 48px !important;
+    height: 48px !important;
+    min-width: 48px !important;
+    border-radius: 6px !important;
+    object-fit: cover !important;
+  }
+
+  .track-info-wrap {
+    flex: 1 !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+
+  .track-name {
+    font-size: 14.5px !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .track-artist {
+    font-size: 12.5px !important;
+    color: #9ca3af !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .tracks-table td:last-child {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    padding: 0 !important;
+  }
+
+  /* ------------------------------------------------------------------------
+     7. YT MUSIC BOTTOM MINI-PLAYER & 4-TAB BOTTOM BAR
+     ------------------------------------------------------------------------ */
+  /* 4-Tab Bottom Navigation Bar (56px) */
+  .mobile-bottom-nav {
+    display: flex !important;
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: var(--mobile-nav-h) !important;
+    background: rgba(18, 18, 22, 0.98) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+    z-index: 950 !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+    justify-content: space-around !important;
+    align-items: center !important;
+  }
+
+  .mobile-tab-btn {
+    flex: 1 !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: transparent !important;
+    border: none !important;
+    color: #9ca3af !important;
+    font-size: 11px !important;
+    font-weight: 500 !important;
+    gap: 3px !important;
+    cursor: pointer !important;
+    transition: color 0.15s ease !important;
+  }
+
+  .mobile-tab-btn.active {
+    color: #ffffff !important;
+  }
+
+  .mobile-tab-btn svg {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  /* YT Music Floating Mini-Player (60px above bottom bar) */
+  .player-bar {
+    position: fixed !important;
+    bottom: calc(var(--mobile-nav-h) + env(safe-area-inset-bottom, 0px)) !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: var(--mobile-mini-player-h) !important;
+    background: #212128 !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.5) !important;
+    z-index: 900 !important;
+    padding: 0 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.4) !important;
+    cursor: pointer !important;
+  }
+
+  .player-left {
+    flex: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    min-width: 0 !important;
+  }
+
+  .player-thumb-wrapper {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    border-radius: 6px !important;
+    overflow: hidden !important;
+  }
+
+  .player-thumb {
+    width: 44px !important;
+    height: 44px !important;
+    object-fit: cover !important;
+  }
+
+  .player-expand-indicator {
+    display: none !important;
+  }
+
+  .player-track-info {
+    flex: 1 !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+  }
+
+  .player-title {
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.2 !important;
+  }
+
+  .player-artist {
+    font-size: 12px !important;
+    color: #9ca3af !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    line-height: 1.2 !important;
+  }
+
+  /* Mini-Player Actions: Heart & Play/Pause */
+  .player-center {
+    flex: 0 0 auto !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+  }
+
+  .player-center .control-buttons {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  /* Hide desktop buttons from mini-player */
+  #shuffleBtn,
+  #prevBtn,
+  #nextBtn,
+  #repeatBtn,
+  .seeker-container,
+  #seekerWrapper,
+  .player-right {
+    display: none !important;
+  }
+
+  /* Show Play/Pause on mini-player */
+  #playPauseBtn {
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 50% !important;
+    background: transparent !important;
+    border: none !important;
+    color: #ffffff !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  #playPauseBtn svg {
+    width: 26px !important;
+    height: 26px !important;
+  }
+
+  /* Mini Player Slim Progress Bar (1.5px) */
+  .mini-player-progress-line {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 2px;
+    background: var(--accent-primary, #8b5cf6);
+    transition: width 0.2s linear;
+    z-index: 10;
+  }
+
+  /* ------------------------------------------------------------------------
+     8. SLIDE-UP FULL-SCREEN NOW PLAYING STAGE
+     ------------------------------------------------------------------------ */
+  .now-playing-stage {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 1100 !important;
+    background: #0f0f13 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: env(safe-area-inset-top, 16px) 16px calc(env(safe-area-inset-bottom, 16px) + 20px) 16px !important;
+    box-sizing: border-box !important;
+    transform: translateY(100%) !important;
+    transition: transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .now-playing-stage.mobile-active {
+    transform: translateY(0) !important;
+    display: flex !important;
+  }
+
+  .np-topbar {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    height: 48px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .np-collapse-btn {
+    width: 40px !important;
+    height: 40px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: transparent !important;
+    border: none !important;
+    color: #ffffff !important;
+    cursor: pointer !important;
+  }
+
+  .np-collapse-btn svg {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  .np-header-title {
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    color: #9ca3af !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+  }
+
+  .np-main-split {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 16px !important;
+    flex: 1 !important;
+  }
+
+  .np-art-column {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    width: 100% !important;
+  }
+
+  .np-art-wrapper {
+    width: min(84vw, 320px) !important;
+    height: min(84vw, 320px) !important;
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6) !important;
+    margin: 8px 0 16px 0 !important;
+  }
+
+  .np-large-cover {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+
+  .np-track-details {
+    width: 100% !important;
+    margin-bottom: 8px !important;
+  }
+
+  .np-track-header-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+  }
+
+  .np-title-wrap {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .np-track-title {
+    font-size: 20px !important;
+    font-weight: 800 !important;
+    color: #ffffff !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .np-track-artist {
+    font-size: 15px !important;
+    color: #9ca3af !important;
+    margin-top: 2px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  .np-track-meta {
+    display: none !important;
+  }
+
+  /* Mobile Full Player Controls Bar */
+  .mobile-full-player-controls {
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    gap: 14px !important;
+    margin-top: 8px !important;
+  }
+
+  .mobile-seeker-row {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    width: 100% !important;
+  }
+
+  .mobile-seeker-track {
+    width: 100% !important;
+    height: 4px !important;
+    background: rgba(255, 255, 255, 0.15) !important;
+    border-radius: 2px !important;
+    position: relative !important;
+    cursor: pointer !important;
+  }
+
+  .mobile-seeker-fill {
+    height: 100% !important;
+    background: #ffffff !important;
+    border-radius: 2px !important;
+    position: relative !important;
+  }
+
+  .mobile-seeker-fill::after {
+    content: '';
+    position: absolute;
+    right: -6px;
+    top: -4px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+  }
+
+  .mobile-seeker-timestamps {
+    display: flex !important;
+    justify-content: space-between !important;
+    font-size: 12px !important;
+    color: #9ca3af !important;
+  }
+
+  .mobile-main-playback-btns {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 0 8px !important;
+  }
+
+  .mobile-main-playback-btns button {
+    background: transparent !important;
+    border: none !important;
+    color: #ffffff !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+  }
+
+  .mobile-btn-play-pause-lg {
+    width: 64px !important;
+    height: 64px !important;
+    border-radius: 50% !important;
+    background: rgba(255, 255, 255, 0.15) !important;
+  }
+
+  .mobile-btn-play-pause-lg svg {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .mobile-aux-tools-row {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-around !important;
+    padding: 8px 0 !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+
+  .mobile-aux-tool-btn {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    border-radius: 16px !important;
+    padding: 6px 12px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: #e5e5ea !important;
+    cursor: pointer !important;
+  }
+
+  /* Queue / Lyrics Tabs in Full Player */
+  .np-queue-column {
+    flex: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    margin-top: 12px !important;
+  }
+
+  .np-tabs-nav {
+    display: flex !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+    gap: 16px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .np-tab-btn {
+    background: transparent !important;
+    border: none !important;
+    color: #9ca3af !important;
+    font-size: 13px !important;
+    font-weight: 700 !important;
+    padding: 8px 4px !important;
+    position: relative !important;
+    cursor: pointer !important;
+  }
+
+  .np-tab-btn.active {
+    color: #ffffff !important;
+  }
+
+  .np-tab-btn.active::after {
+    content: '' !important;
+    position: absolute !important;
+    bottom: -1px !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 2px !important;
+    background: #ffffff !important;
+  }
+
+  /* ------------------------------------------------------------------------
+     9. SLIDE-UP 10-BAND EQ SHEET ON MOBILE
+     ------------------------------------------------------------------------ */
+  #eqModal .modal-dialog {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    max-height: 85vh !important;
+    border-radius: 20px 20px 0 0 !important;
+    background: #181820 !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+    border-bottom: none !important;
+    z-index: 1200 !important;
+    margin: 0 !important;
+    padding: 16px !important;
+    overflow-y: auto !important;
+  }
+
+  .eq-presets-bar {
+    display: flex !important;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    gap: 6px !important;
+    padding-bottom: 8px !important;
+    scrollbar-width: none !important;
+  }
+
+  .eq-presets-bar::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .eq-sliders-rack {
+    display: flex !important;
+    overflow-x: auto !important;
+    gap: 12px !important;
+    padding: 12px 0 !important;
+    scrollbar-width: none !important;
+  }
+
+  /* ------------------------------------------------------------------------
+     10. KEYBOARD PROTECTION (Prevent bottom bars overlapping during typing)
+     ------------------------------------------------------------------------ */
+  body.keyboard-open .mobile-bottom-nav,
+  body.keyboard-open .player-bar {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateY(100%) !important;
+  }
+}

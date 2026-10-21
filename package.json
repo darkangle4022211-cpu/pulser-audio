@@ -1,6 +1,6 @@
 {
   "name": "pulsar-music-player",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "homepage": "https://github.com/pulsar/player",
   "description": "Premium 100% Offline MP3 Music Player for Linux with Custom Playlists, 10-Band EQ, and Audio Visualizer",
   "main": "electron/main.cjs",
@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "electron:dev": "ELECTRON_DEV=true electron .",
     "build:deb": "bash scripts/build_deb.sh",
-    "build:win": "bash scripts/build_win.sh"
+    "build:win": "bash scripts/build_win.sh",
+    "build:apk": "bash scripts/build_apk.sh"
   },
   "keywords": [
     "mp3",
@@ -26,6 +27,8 @@
   "author": "Antigravity",
   "license": "MIT",
   "devDependencies": {
+    "@capacitor/android": "^6.2.2",
+    "@capacitor/cli": "^6.2.2",
     "electron": "^31.6.0",
     "electron-builder": "^24.13.3",
     "puppeteer-core": "^24.43.1",
@@ -98,5 +101,9 @@
     "portable": {
       "artifactName": "${productName} Portable ${version}.${ext}"
     }
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.2.2",
+    "@capacitor/filesystem": "^6.0.4"
   }
 }

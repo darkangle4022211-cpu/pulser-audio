@@ -13,6 +13,8 @@ import { setupHotkeys } from './hotkeys.js';
 import { onlineMusic } from '../services/onlineMusic.js';
 import { BluetoothMediaManager } from '../utils/bluetoothMedia.js';
 import { tasteEngine } from '../services/tasteEngine.js';
+import '../utils/platformBridge.js';
+import { initMobileUI } from './mobileUI.js';
 
 // Cross-platform URL converter for pulsar-audio:// scheme (supports Linux & Windows drive letters)
 function toPulsarAudioUrl(filePath) {
@@ -78,6 +80,7 @@ class App {
 
   async init() {
     this._cacheDOMElements();
+    try { initMobileUI(this); } catch (e) { console.warn('Mobile UI init warning:', e); }
     try { this._initVisualizer(); } catch (e) { console.warn('Visualizer init warning:', e); }
     try { this._initBluetoothMedia(); } catch (e) { console.warn('Bluetooth init warning:', e); }
     try { this._bindEvents(); } catch (e) { console.warn('Event binding warning:', e); }
@@ -338,6 +341,8 @@ class App {
     this.updateProgressBlock = document.getElementById('updateProgressBlock');
     this.updateBgBanner = document.getElementById('updateBgBanner');
     this.updateProgressBarFill = document.getElementById('updateProgressBarFill');
+    this.updateProgressPercent = document.getElementById('updateProgressPercent');
+    this.updateProgressLabel = document.getElementById('updateProgressLabel');
 
     // YouTube Music Now Playing Stage (Screenshot 5 Reference)
     this.nowPlayingStage = document.getElementById('nowPlayingStage');
@@ -1802,10 +1807,35 @@ class App {
       src = track.blobUrl;
     }
 
+    let playedSuccessfully = false;
     if (src) {
-      await audioEngine.loadAndPlay(src, 0, track.duration);
-      if (this._playRequestId !== requestId) return;
+      try {
+        await audioEngine.loadAndPlay(src, 0, track.duration);
+        playedSuccessfully = true;
+      } catch (err) {
+        console.warn('Initial playback failed for src:', src, err);
+      }
+    }
 
+    // High-resilience fallback: If initial src failed or was empty, load stored audio Blob from IndexedDB
+    if (!playedSuccessfully && !track.isOnline) {
+      try {
+        const storedBlob = await db.getAudioFile(track.id);
+        if (storedBlob) {
+          const blobUrl = URL.createObjectURL(storedBlob);
+          this.audioFilesMap.set(track.id, storedBlob);
+          track.blobUrl = blobUrl;
+          await audioEngine.loadAndPlay(blobUrl, 0, track.duration);
+          playedSuccessfully = true;
+        }
+      } catch (err) {
+        console.warn('Audio blob fallback playback error:', err);
+      }
+    }
+
+    if (this._playRequestId !== requestId) return;
+
+    if (playedSuccessfully) {
       if (track.isOnline) {
         this._showToast(`Streaming "${track.title}" by ${track.artist}`, 'success');
       }
@@ -2049,7 +2079,7 @@ class App {
       if (isDragging) {
         updateSeekUI(e);
       }
-    });
+    }, { passive: true });
 
     window.addEventListener('mouseup', (e) => {
       if (isDragging) {
@@ -2120,7 +2150,7 @@ class App {
 
     window.addEventListener('mousemove', (e) => {
       if (isDragging) handleVol(e);
-    });
+    }, { passive: true });
 
     window.addEventListener('mouseup', () => {
       isDragging = false;

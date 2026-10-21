@@ -1,0 +1,66 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Node Dependencies
+        run: npm install
+
+      - name: Build Web Application
+        run: npm run build
+
+      - name: Provision and Sync Capacitor Android Project
+        run: |
+          npx cap add android || true
+          if [ -d "custom-android" ]; then
+            echo "Applying flagship AndroidManifest and MainActivity configurations..."
+            cp custom-android/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+            cp custom-android/MainActivity.java android/app/src/main/java/com/pulsar/musicplayer/MainActivity.java
+          fi
+          npx cap sync android
+
+      - name: Make Gradlew Executable
+        run: chmod +x android/gradlew
+
+      - name: Assemble Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Prepare APK Artifact Directory
+        run: |
+          mkdir -p dist-apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist-apk/Pulsar-Audio-Android.apk
+          ls -lh dist-apk/
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pulsar-Audio-Android-APK
+          path: dist-apk/Pulsar-Audio-Android.apk
+          if-no-files-found: error
+          retention-days: 7
