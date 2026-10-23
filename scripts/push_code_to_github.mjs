@@ -57,7 +57,7 @@ function apiRequest(endpoint, method = 'GET', data = null) {
   });
 }
 
-export async function pushFilesToGitHub(commitMessage = 'feat: Full source code commit for Vite & Android APK cloud build') {
+export async function pushFilesToGitHub(commitMessage = 'feat: Full source code commit for Desktop Electron application') {
   console.log(`=== Pushing complete source tree to ${OWNER}/${REPO}:${BRANCH} ===`);
 
   // 1. Get latest commit SHA on main
@@ -73,10 +73,11 @@ export async function pushFilesToGitHub(commitMessage = 'feat: Full source code 
   // 3. Complete list of all source files
   const filePaths = [
     'package.json',
-    'capacitor.config.json',
     'vite.config.js',
     'index.html',
     'update.json',
+    'electron/main.cjs',
+    'electron/preload.cjs',
     'src/audio/engine.js',
     'src/audio/visualizer.js',
     'src/playlists/manager.js',
@@ -85,23 +86,20 @@ export async function pushFilesToGitHub(commitMessage = 'feat: Full source code 
     'src/storage/db.js',
     'src/styles/components.css',
     'src/styles/main.css',
-    'src/styles/mobile.css',
     'src/styles/variables.css',
     'src/ui/app.js',
     'src/ui/hotkeys.js',
-    'src/ui/mobileUI.js',
     'src/utils/bluetoothMedia.js',
     'src/utils/id3Parser.js',
     'src/utils/id3Writer.js',
     'src/utils/lrcParser.js',
-    'src/utils/platformBridge.js',
-    'custom-android/AndroidManifest.xml',
-    'custom-android/MainActivity.java',
-    '.github/workflows/build-android-apk.yml',
-    'scripts/build_apk.sh',
-    'scripts/build_apk_runner.mjs',
+    'scripts/build_deb.sh',
+    'scripts/build_win.sh',
+    'scripts/publish_github_release.mjs',
     'scripts/push_code_to_github.mjs',
-    'scripts/qa_verify_apk_and_regression.mjs'
+    'scripts/verify_desktop_qa.mjs',
+    'scripts/verify_offline_shuffle.mjs',
+    'scripts/qa_verify_windows.mjs'
   ];
 
   const tree = [];

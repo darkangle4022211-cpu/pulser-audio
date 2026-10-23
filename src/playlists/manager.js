@@ -18,6 +18,7 @@ class PlaylistManager {
     this.queue = [];
     this.queueIndex = 0;
     this.history = [];
+    this.playedShuffleIndices = new Set();
     this.onQueueChange = null;
     this.onPlaylistsChange = null;
   }
@@ -160,7 +161,12 @@ class PlaylistManager {
   setQueue(tracks, startIndex = 0) {
     this.queue = [...tracks];
     this.queueIndex = Math.max(0, Math.min(startIndex, this.queue.length - 1));
+    this.playedShuffleIndices = new Set([this.queueIndex]);
     if (this.onQueueChange) this.onQueueChange(this.queue, this.queueIndex);
+  }
+
+  resetShuffle(offlineOnly = false) {
+    this.playedShuffleIndices = new Set([this.queueIndex]);
   }
 
   addToQueueNext(track) {
@@ -181,6 +187,7 @@ class PlaylistManager {
   removeFromQueue(index) {
     if (index < 0 || index >= this.queue.length) return;
     this.queue.splice(index, 1);
+    this.playedShuffleIndices.delete(index);
     if (index < this.queueIndex) {
       this.queueIndex--;
     } else if (this.queueIndex >= this.queue.length) {
@@ -193,27 +200,59 @@ class PlaylistManager {
     return this.queue[this.queueIndex] || null;
   }
 
-  getNextTrack(isShuffle = false, isRepeatAll = false, isRepeatOne = false) {
-    if (this.queue.length === 0) return null;
+  getNextTrack(isShuffle = false, isRepeatAll = false, isRepeatOne = false, offlineOnly = false) {
+    if (!this.queue || this.queue.length === 0) return null;
     if (isRepeatOne) return this.getCurrentTrack();
 
+    // Determine eligible track indices based on offlineOnly constraint
+    const validIndices = [];
+    for (let i = 0; i < this.queue.length; i++) {
+      const t = this.queue[i];
+      if (!t) continue;
+      if (offlineOnly && (t.isOnline || String(t.id).startsWith('yt_'))) continue;
+      validIndices.push(i);
+    }
+    if (validIndices.length === 0) return null;
+
     if (isShuffle) {
-      if (this.queue.length === 1) return this.queue[0];
-      let randIdx = Math.floor(Math.random() * this.queue.length);
-      while (randIdx === this.queueIndex && this.queue.length > 1) {
-        randIdx = Math.floor(Math.random() * this.queue.length);
+      if (validIndices.length === 1) {
+        this.queueIndex = validIndices[0];
+        if (this.onQueueChange) this.onQueueChange(this.queue, this.queueIndex);
+        return this.queue[this.queueIndex];
       }
+
+      // Filter for unplayed indices in the current shuffle cycle
+      let unplayed = validIndices.filter(i => !this.playedShuffleIndices.has(i));
+
+      if (unplayed.length === 0) {
+        // Entire queue has been played through in this shuffle session
+        if (isRepeatAll) {
+          // Loop through shuffled list: reset played history and choose from valid indices (preferring not immediate duplicate)
+          this.playedShuffleIndices.clear();
+          unplayed = validIndices.filter(i => i !== this.queueIndex);
+          if (unplayed.length === 0) unplayed = validIndices;
+        } else {
+          // Shuffle playlist completed cleanly and repeat is off
+          this.playedShuffleIndices.clear();
+          return null;
+        }
+      }
+
+      const randIdx = unplayed[Math.floor(Math.random() * unplayed.length)];
+      this.playedShuffleIndices.add(randIdx);
       this.queueIndex = randIdx;
       if (this.onQueueChange) this.onQueueChange(this.queue, this.queueIndex);
       return this.queue[this.queueIndex];
     }
 
-    if (this.queueIndex < this.queue.length - 1) {
-      this.queueIndex++;
+    // Sequential mode:
+    const nextIdx = validIndices.find(i => i > this.queueIndex);
+    if (nextIdx !== undefined) {
+      this.queueIndex = nextIdx;
       if (this.onQueueChange) this.onQueueChange(this.queue, this.queueIndex);
       return this.queue[this.queueIndex];
-    } else if (isRepeatAll) {
-      this.queueIndex = 0;
+    } else if (isRepeatAll && validIndices.length > 0) {
+      this.queueIndex = validIndices[0];
       if (this.onQueueChange) this.onQueueChange(this.queue, this.queueIndex);
       return this.queue[this.queueIndex];
     }
@@ -221,14 +260,25 @@ class PlaylistManager {
     return null;
   }
 
-  getPreviousTrack() {
-    if (this.queue.length === 0) return null;
-    if (this.queueIndex > 0) {
-      this.queueIndex--;
-      if (this.onQueueChange) this.onQueueChange(this.queue, this.queueIndex);
-      return this.queue[this.queueIndex];
+  getPreviousTrack(offlineOnly = false) {
+    if (!this.queue || this.queue.length === 0) return null;
+    const validIndices = [];
+    for (let i = 0; i < this.queue.length; i++) {
+      const t = this.queue[i];
+      if (!t) continue;
+      if (offlineOnly && (t.isOnline || String(t.id).startsWith('yt_'))) continue;
+      validIndices.push(i);
     }
-    return this.queue[0];
+    if (validIndices.length === 0) return null;
+
+    const prevIndices = validIndices.filter(i => i < this.queueIndex);
+    if (prevIndices.length > 0) {
+      this.queueIndex = prevIndices[prevIndices.length - 1];
+    } else {
+      this.queueIndex = validIndices[0];
+    }
+    if (this.onQueueChange) this.onQueueChange(this.queue, this.queueIndex);
+    return this.queue[this.queueIndex];
   }
 
   // --- Search & Sorting ---

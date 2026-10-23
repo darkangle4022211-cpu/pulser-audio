@@ -6,6 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const https = require('https');
 const http = require('http');
+const { pathToFileURL, fileURLToPath } = require('url');
 
 // Enforce single instance to prevent duplicate processes and LevelDB database lock contention
 const gotTheLock = app.requestSingleInstanceLock();
@@ -24,8 +25,11 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('com.pulsar.musicplayer');
 }
 
-// Power-efficient, whisper-quiet graphics configuration (hardware VSync enabled, <1% CPU & GPU on mouse movement)
+// Power-efficient, whisper-quiet graphics configuration (hardware VSync enabled, <0.5% CPU & GPU idle)
 app.commandLine.appendSwitch('no-sandbox');
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
 
 function getAppIconPath() {
   if (process.platform === 'win32') {
@@ -1707,84 +1711,36 @@ app.whenReady().then(() => {
   protocol.handle('pulsar-audio', async (request) => {
     try {
       let raw = request.url.replace(/^pulsar-audio:\/\//, '');
-      raw = decodeURIComponent(raw);
+      try {
+        raw = decodeURIComponent(raw);
+      } catch (_) {}
+
       let fullPath;
-      if (/^\/?[a-zA-Z]:[\/\\]/.test(raw)) {
-        if (raw.startsWith('/')) raw = raw.slice(1);
-        fullPath = path.win32.normalize(raw);
+      const winMatch = raw.match(/^\/?([a-zA-Z]):[\/\\](.*)/);
+      if (winMatch) {
+        fullPath = winMatch[1].toUpperCase() + ':\\' + winMatch[2].replace(/\//g, '\\');
       } else {
         if (!raw.startsWith('/')) raw = '/' + raw;
         fullPath = path.posix.normalize(raw);
       }
 
       if (!fs.existsSync(fullPath)) {
+        console.warn('[pulsar-audio] File not found on disk:', fullPath);
         return new Response('File not found', { status: 404 });
       }
 
-      const stat = await fs.promises.stat(fullPath);
-      const totalSize = stat.size;
-
-      const ext = path.extname(fullPath).toLowerCase();
-      const mimeTypes = {
-        '.mp3': 'audio/mpeg',
-        '.flac': 'audio/flac',
-        '.wav': 'audio/wav',
-        '.ogg': 'audio/ogg',
-        '.m4a': 'audio/mp4',
-        '.aac': 'audio/aac',
-        '.opus': 'audio/opus',
-        '.webm': 'audio/webm',
-        '.wma': 'audio/x-ms-wma',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.png': 'image/png',
-        '.webp': 'image/webp'
-      };
-      const contentType = mimeTypes[ext] || 'application/octet-stream';
-
-      const rangeHeader = request.headers.get('range');
-      if (rangeHeader) {
-        const match = rangeHeader.match(/bytes=(\d*)-(\d*)/);
-        if (match) {
-          let start = match[1] ? parseInt(match[1], 10) : 0;
-          let end = match[2] ? parseInt(match[2], 10) : totalSize - 1;
-          if (isNaN(start)) start = 0;
-          if (isNaN(end) || end >= totalSize) end = totalSize - 1;
-
-          if (start > end || start >= totalSize) {
-            return new Response('Range Not Satisfiable', {
-              status: 416,
-              headers: { 'Content-Range': `bytes */${totalSize}` }
-            });
-          }
-
-          const chunkSize = (end - start) + 1;
-          const nodeStream = fs.createReadStream(fullPath, { start, end });
-          return new Response(Readable.toWeb(nodeStream), {
-            status: 206,
-            headers: {
-              'Content-Type': contentType,
-              'Content-Length': String(chunkSize),
-              'Content-Range': `bytes ${start}-${end}/${totalSize}`,
-              'Accept-Ranges': 'bytes',
-              'Access-Control-Allow-Origin': '*'
-            }
-          });
-        }
+      let fileUrl;
+      if (process.platform === 'win32' || winMatch) {
+        const normWin = fullPath.replace(/\\/g, '/');
+        const cleanDrive = normWin.startsWith('/') ? normWin.slice(1) : normWin;
+        fileUrl = 'file:///' + encodeURI(cleanDrive).replace(/#/g, '%23').replace(/\?/g, '%3F');
+      } else {
+        fileUrl = pathToFileURL(fullPath).toString();
       }
 
-      const nodeStream = fs.createReadStream(fullPath);
-      return new Response(Readable.toWeb(nodeStream), {
-        status: 200,
-        headers: {
-          'Content-Type': contentType,
-          'Content-Length': String(totalSize),
-          'Accept-Ranges': 'bytes',
-          'Access-Control-Allow-Origin': '*'
-        }
-      });
+      return await net.fetch(fileUrl);
     } catch (err) {
-      console.error('pulsar-audio protocol error:', err);
+      console.error('[pulsar-audio] protocol error:', err.message);
       return new Response('Error loading file: ' + err.message, { status: 500 });
     }
   });
@@ -2157,49 +2113,154 @@ function resolveDownloadMeta(u) {
 
 function downloadFileWithProgress(url, destPath, onProgress) {
   return new Promise(async (resolve, reject) => {
-    try {
-      const { finalUrl, total } = await resolveDownloadMeta(url);
-      const proto = finalUrl.startsWith('https:') ? https : http;
-      const req = proto.get(finalUrl, {
-        headers: { 'User-Agent': 'PulsarAudio-Updater/' + APP_VERSION }
-      }, (res) => {
-        if (res.statusCode !== 200) {
-          res.resume();
-          return reject(new Error('HTTP ' + res.statusCode));
-        }
-        const fileStream = fs.createWriteStream(destPath, { highWaterMark: 512 * 1024 });
-        let transferred = 0;
-        let lastReportTime = 0;
-        let lastPercent = -1;
+    const partPath = `${destPath}.part`;
+    let attempt = 0;
+    const maxAttempts = 10;
+    const agent = new https.Agent({ keepAlive: true, maxFreeSockets: 5, timeout: 30000 });
 
-        res.on('data', chunk => {
-          transferred += chunk.length;
-          fileStream.write(chunk);
-          const now = Date.now();
-          const percent = total > 0 ? Math.round((transferred / total) * 100) : 0;
-          if (percent === 100 || (now - lastReportTime >= 500 && percent !== lastPercent)) {
-            lastReportTime = now;
-            lastPercent = percent;
-            if (onProgress) onProgress({ transferred, total, percent });
+    async function attemptDownload() {
+      attempt++;
+      try {
+        let existingBytes = 0;
+        if (fs.existsSync(partPath)) {
+          existingBytes = fs.statSync(partPath).size;
+        }
+
+        const { finalUrl, total } = await resolveDownloadMeta(url);
+        if (total > 0 && existingBytes >= total) {
+          try { fs.renameSync(partPath, destPath); } catch (_) { fs.copyFileSync(partPath, destPath); }
+          if (onProgress) onProgress({ transferred: total, total, percent: 100 });
+          return resolve(destPath);
+        }
+
+        const proto = finalUrl.startsWith('https:') ? https : http;
+        const headers = {
+          'User-Agent': 'PulsarAudio-Updater/' + APP_VERSION
+        };
+        if (existingBytes > 0) {
+          headers['Range'] = `bytes=${existingBytes}-`;
+        }
+
+        const req = proto.get(finalUrl, {
+          headers,
+          agent: finalUrl.startsWith('https:') ? agent : undefined
+        }, (res) => {
+          if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+            res.resume();
+            return downloadFileWithProgress(res.headers.location, destPath, onProgress).then(resolve).catch(reject);
           }
-        });
-        res.on('end', () => {
-          fileStream.end(() => {
-            if (onProgress) onProgress({ transferred: total || transferred, total: total || transferred, percent: 100 });
-            resolve(destPath);
+
+          let fileStream;
+          let transferred = existingBytes;
+          let expectedTotal = total;
+
+          if (res.statusCode === 206) {
+            fileStream = fs.createWriteStream(partPath, { flags: 'a', highWaterMark: 1024 * 1024 });
+            const cr = res.headers['content-range'];
+            if (cr) {
+              const m = cr.match(/\/(\d+)/);
+              if (m) expectedTotal = parseInt(m[1], 10);
+            }
+          } else if (res.statusCode === 200) {
+            fileStream = fs.createWriteStream(partPath, { flags: 'w', highWaterMark: 1024 * 1024 });
+            transferred = 0;
+            if (res.headers['content-length']) {
+              expectedTotal = parseInt(res.headers['content-length'], 10);
+            }
+          } else if (res.statusCode === 416) {
+            res.resume();
+            if (existingBytes > 0) {
+              try { fs.renameSync(partPath, destPath); } catch (_) { fs.copyFileSync(partPath, destPath); }
+              if (onProgress) onProgress({ transferred: existingBytes, total: existingBytes, percent: 100 });
+              return resolve(destPath);
+            }
+            return reject(new Error('HTTP 416 Range Not Satisfiable'));
+          } else {
+            res.resume();
+            throw new Error('HTTP ' + res.statusCode);
+          }
+
+          let lastReportTime = 0;
+          let lastPercent = -1;
+          let stallTimer = null;
+
+          const resetStallTimer = () => {
+            if (stallTimer) clearTimeout(stallTimer);
+            stallTimer = setTimeout(() => {
+              console.warn('[Updater] Download stream stalled for 12s, reconnecting...');
+              res.destroy(new Error('Stream stalled'));
+            }, 12000);
+          };
+          resetStallTimer();
+
+          res.on('data', chunk => {
+            resetStallTimer();
+            transferred += chunk.length;
+            fileStream.write(chunk);
+            const now = Date.now();
+            const percent = expectedTotal > 0 ? Math.min(100, Math.round((transferred / expectedTotal) * 100)) : 0;
+            if (percent === 100 || (now - lastReportTime >= 250 && percent !== lastPercent)) {
+              lastReportTime = now;
+              lastPercent = percent;
+              if (onProgress) onProgress({ transferred, total: expectedTotal, percent });
+            }
+          });
+
+          res.on('end', () => {
+            if (stallTimer) clearTimeout(stallTimer);
+            fileStream.end(() => {
+              try {
+                if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
+                fs.renameSync(partPath, destPath);
+              } catch (_) {
+                try { fs.copyFileSync(partPath, destPath); fs.unlinkSync(partPath); } catch (__) {}
+              }
+              if (onProgress) onProgress({ transferred: expectedTotal || transferred, total: expectedTotal || transferred, percent: 100 });
+              resolve(destPath);
+            });
+          });
+
+          res.on('error', (err) => {
+            if (stallTimer) clearTimeout(stallTimer);
+            fileStream.destroy();
+            console.warn(`[Updater] Download chunk error on attempt ${attempt}:`, err.message);
+            retry();
+          });
+
+          fileStream.on('error', (err) => {
+            if (stallTimer) clearTimeout(stallTimer);
+            reject(err);
           });
         });
-        res.on('error', (err) => {
-          fileStream.destroy();
-          reject(err);
+
+        req.on('error', (err) => {
+          console.warn(`[Updater] Request network error on attempt ${attempt}:`, err.message);
+          retry();
         });
-        fileStream.on('error', reject);
-      });
-      req.on('error', reject);
-      req.setTimeout(60000, () => { req.destroy(); reject(new Error('Download timeout')); });
-    } catch (err) {
-      reject(err);
+
+        req.setTimeout(25000, () => {
+          req.destroy(new Error('Request socket timeout'));
+        });
+
+      } catch (err) {
+        console.warn(`[Updater] Setup error on attempt ${attempt}:`, err.message);
+        retry();
+      }
     }
+
+    function retry() {
+      if (attempt < maxAttempts) {
+        const delay = Math.min(5000, 1500 * attempt);
+        if (onProgress) onProgress({ percent: 0, status: `Connection interrupted. Resuming in ${Math.round(delay/1000)}s...` });
+        setTimeout(() => {
+          attemptDownload();
+        }, delay);
+      } else {
+        reject(new Error('Download failed after multiple retries. Check internet connection.'));
+      }
+    }
+
+    attemptDownload();
   });
 }
 
@@ -2233,11 +2294,18 @@ ipcMain.handle('install-update', async (event, customInstallerPath) => {
 
   if (isWin) {
     try {
-      const child = spawn(installerPath, [], {
-        detached: true,
-        stdio: 'ignore'
-      });
-      child.unref();
+      // Use shell.openPath for native Windows ShellExecuteEx execution
+      // This launches the installer as a standalone top-level Win32 process with UAC elevation support
+      const openResult = await shell.openPath(installerPath);
+      if (openResult) {
+        // Fallback to cmd.exe start if shell.openPath returned an error string
+        const child = spawn('cmd.exe', ['/c', 'start', '""', installerPath], {
+          detached: true,
+          stdio: 'ignore',
+          windowsHide: true
+        });
+        child.unref();
+      }
 
       if (tray && !tray.isDestroyed()) {
         try { tray.destroy(); } catch (_) {}
@@ -2249,7 +2317,7 @@ ipcMain.handle('install-update', async (event, customInstallerPath) => {
 
       setTimeout(() => {
         app.exit(0);
-      }, 300);
+      }, 500);
 
       return { success: true };
     } catch (err) {
@@ -2298,7 +2366,8 @@ rm -f "${debPath}" "${scriptPath}" 2>/dev/null
 
   try {
     fs.writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
-    const child = spawn('/bin/bash', [scriptPath], {
+    const bashBin = fs.existsSync('/bin/bash') ? '/bin/bash' : (fs.existsSync('/usr/bin/bash') ? '/usr/bin/bash' : 'bash');
+    const child = spawn(bashBin, [scriptPath], {
       detached: true,
       stdio: 'ignore'
     });

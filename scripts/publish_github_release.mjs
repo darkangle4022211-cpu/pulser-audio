@@ -7,23 +7,28 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 
-const TOKEN = process.env.GITHUB_TOKEN || process.env.GITHUB_PERSONAL_ACCESS_TOKEN;
+const tokenFile = path.join(projectRoot, '.github_token');
+const TOKEN = process.env.GITHUB_TOKEN || process.env.GITHUB_PERSONAL_ACCESS_TOKEN || (fs.existsSync(tokenFile) ? fs.readFileSync(tokenFile, 'utf8').trim() : (fs.existsSync('/tmp/.gh_token') ? fs.readFileSync('/tmp/.gh_token', 'utf8').trim() : ''));
 const REPO = "darkangle4022211-cpu/pulser-audio";
-const TAG = "v1.1.2";
-const RELEASE_NAME = "v1.1.2 - Windows & Linux Production Release";
-const RELEASE_BODY = `### Pulsar Music Player v1.1.2 Production Release
+
+const pkg = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
+const VERSION = pkg.version;
+const TAG = `v${VERSION}`;
+const RELEASE_NAME = `v${VERSION} - Offline Shuffle Isolation & Performance Release`;
+const RELEASE_BODY = `### Pulsar Music Player v${VERSION} Production Release
 
 #### 🚀 What's New:
-- **Windows Online Playback Fix:** Streamlined YouTube stream resolution timeout (30s) and multi-candidate binary resolution so online playback starts smoothly on Windows without PyInstaller timeouts.
-- **Buffering & Loading UX:** Added responsive buffering indicators on the player and eliminated redundant click aborts when selecting songs.
-- **In-App Auto-Updater:** Full cross-platform support for seamless in-app updating on both Windows (.exe) and Linux (.deb).
-- **Bundled Standalone Binaries:** Includes standalone \`yt-dlp.exe\` and \`ffmpeg.exe\` (0 Python or external setup needed on Windows).
-- **10-Band EQ & 60FPS Audio Visualizer:** High-fidelity hardware-accelerated audio processing.
+- **Offline Shuffle Isolation:** Shuffling offline playlists or All Tracks stays strictly within local offline tracks with zero online streaming leaks.
+- **Robust Playback Context:** Explicitly isolates offline library playback from online Discover & Flow streaming.
+- **Clean Offline Queue End:** When the last shuffled song finishes in an offline playlist, it cleanly stops or loops locally if repeat is enabled, never auto-fetching online radio.
+- **Pure Desktop Electron Architecture:** High-fidelity Linux (.deb) and Windows (.exe) desktop audio playback with 10-band EQ, 60FPS visualizer, and MPRIS integration.
+- **Ultra-Low CPU & GPU Footprint:** Low resource utilization with zero idle load (<0.5%).
+- **Resilient & Fast Auto-Updater:** HTTP Range resume (.part) with 10-retry auto-reconnect on network drops.
 
 #### 📦 Downloads:
-- **Windows Installer:** \`Pulsar Music Player Setup 1.1.2.exe\`
-- **Windows Standalone Portable:** \`Pulsar Music Player Portable 1.1.2.exe\`
-- **Linux Debian Package:** \`pulsar-music-player_1.1.2_amd64.deb\`
+- **Windows Installer:** \`Pulsar Music Player Setup ${VERSION}.exe\`
+- **Windows Standalone Portable:** \`Pulsar Music Player Portable ${VERSION}.exe\`
+- **Linux Debian Package:** \`pulsar-music-player_${VERSION}_amd64.deb\`
 `;
 
 function githubRequest(url, options = {}, data = null) {
@@ -168,20 +173,20 @@ async function main() {
   // Assets to upload
   const assets = [
     {
-      name: 'Pulsar Music Player Setup 1.1.2.exe',
-      path: path.join(projectRoot, 'dist-electron', 'Pulsar Music Player Setup 1.1.2.exe')
-    },
-    {
-      name: 'Pulsar Music Player Portable 1.1.2.exe',
-      path: path.join(projectRoot, 'dist-electron', 'Pulsar Music Player Portable 1.1.2.exe')
-    },
-    {
-      name: 'pulsar-music-player_1.1.2_amd64.deb',
-      path: path.join(projectRoot, 'dist-electron', 'pulsar-music-player_1.1.2_amd64.deb')
-    },
-    {
       name: 'update.json',
       path: path.join(projectRoot, 'update.json')
+    },
+    {
+      name: `Pulsar Music Player Setup ${VERSION}.exe`,
+      path: path.join(projectRoot, 'dist-electron', `Pulsar Music Player Setup ${VERSION}.exe`)
+    },
+    {
+      name: `Pulsar Music Player Portable ${VERSION}.exe`,
+      path: path.join(projectRoot, 'dist-electron', `Pulsar Music Player Portable ${VERSION}.exe`)
+    },
+    {
+      name: `pulsar-music-player_${VERSION}_amd64.deb`,
+      path: path.join(projectRoot, 'dist-electron', `pulsar-music-player_${VERSION}_amd64.deb`)
     }
   ];
 

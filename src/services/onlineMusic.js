@@ -355,7 +355,7 @@ class OnlineMusicService {
       throw new Error('Offline');
     }
 
-    const nativeApi = window.pulsarNative || window.electronAPI;
+    const nativeApi = window.electronAPI;
     if (nativeApi && typeof nativeApi.searchOnlineMusic === 'function') {
       try {
         const res = await nativeApi.searchOnlineMusic('top trending hits 2026', limit, filter);
@@ -384,7 +384,7 @@ class OnlineMusicService {
       return this.getTrendingTracks({ filter, limit, offset });
     }
 
-    const nativeApi = window.pulsarNative || window.electronAPI;
+    const nativeApi = window.electronAPI;
     if (nativeApi && typeof nativeApi.searchOnlineMusic === 'function') {
       try {
         const res = await nativeApi.searchOnlineMusic(cleanQuery, limit, filter);
@@ -425,7 +425,7 @@ class OnlineMusicService {
    */
   async getSimilarSongs(track, limit = 35) {
     if (!track) return [];
-    const nativeApi = window.pulsarNative || window.electronAPI;
+    const nativeApi = window.electronAPI;
     const videoId = track.ytId || (track.id && track.id.startsWith('yt_') ? track.id.slice(3) : null);
 
     if (nativeApi && typeof nativeApi.getSimilarSongs === 'function') {
@@ -461,7 +461,7 @@ class OnlineMusicService {
     if (!query || typeof query !== 'string') return [];
     const trimmed = query.trim();
     if (!trimmed) return [];
-    const nativeApi = window.pulsarNative || window.electronAPI;
+    const nativeApi = window.electronAPI;
     if (nativeApi && typeof nativeApi.getSearchSuggestions === 'function') {
       try {
         const results = await nativeApi.getSearchSuggestions(trimmed);
@@ -485,7 +485,7 @@ class OnlineMusicService {
    */
   async getPersonalizedRecommendations(topArtists = [], limit = 24) {
     const recommendations = [];
-    const nativeApi = window.pulsarNative || window.electronAPI;
+    const nativeApi = window.electronAPI;
 
     if (topArtists && topArtists.length > 0 && nativeApi && typeof nativeApi.searchOnlineMusic === 'function') {
       const fetchPromises = topArtists.slice(0, 3).map(async (item) => {
@@ -533,7 +533,7 @@ class OnlineMusicService {
   async getSongVibeRecommendations(seedTracks = [], topArtists = [], limit = 20) {
     const recommendations = [];
     const seen = new Set();
-    const nativeApi = window.pulsarNative || window.electronAPI;
+    const nativeApi = window.electronAPI;
 
     // 1. If seed tracks with high engagement exist, query InnerTube RDAMVM for each
     if (Array.isArray(seedTracks) && seedTracks.length > 0 && nativeApi && typeof nativeApi.getSimilarSongs === 'function') {

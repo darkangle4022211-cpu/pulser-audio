@@ -154,7 +154,7 @@ export class BluetoothMediaManager {
    */
   _initIPC() {
     if (typeof window === 'undefined') return;
-    const nativeApi = window.pulsarNative || window.electronAPI;
+    const nativeApi = window.electronAPI;
     if (nativeApi && typeof nativeApi.onMediaKey === 'function') {
       try {
         nativeApi.onMediaKey((cmd) => {

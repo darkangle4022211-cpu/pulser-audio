@@ -406,7 +406,10 @@ recordTest(
 
 // Test 4: Live Wine Initialization Smoke Test
 try {
-  const wineProc = execSync(`timeout -s KILL 3 wine "${winExePath}" --version 2>&1 || true`, { encoding: 'utf8' });
+  const tmpWineOut = '/tmp/wine_smoke.log';
+  if (fs.existsSync(tmpWineOut)) fs.unlinkSync(tmpWineOut);
+  execSync(`timeout -s KILL 3 wine "${winExePath}" --version > ${tmpWineOut} 2>&1 || true`, { timeout: 8000 });
+  const wineProc = fs.existsSync(tmpWineOut) ? fs.readFileSync(tmpWineOut, 'utf8') : '';
   const noMissingDll = !wineProc.toLowerCase().includes('err:module:import_dll');
   recordTest(
     'Wine Live Startup Smoke Test (Zero Missing DLL / Dependency Errors)',
@@ -415,6 +418,11 @@ try {
   );
 } catch (err) {
   recordTest('Wine Live Startup Smoke Test', false, err.message);
+} finally {
+  // Always kill any orphaned wine child processes and wineserver immediately
+  try {
+    execSync('pkill -9 -f "Pulsar Music Player.exe" || true; pkill -9 -f wineserver || true', { stdio: 'ignore' });
+  } catch (_) {}
 }
 
 // ----------------------------------------------------------------

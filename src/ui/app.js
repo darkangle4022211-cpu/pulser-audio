@@ -13,15 +13,10 @@ import { setupHotkeys } from './hotkeys.js';
 import { onlineMusic } from '../services/onlineMusic.js';
 import { BluetoothMediaManager } from '../utils/bluetoothMedia.js';
 import { tasteEngine } from '../services/tasteEngine.js';
-import '../utils/platformBridge.js';
-import { initMobileUI } from './mobileUI.js';
 
 // Cross-platform URL converter for pulsar-audio:// scheme (supports Linux & Windows drive letters)
 function toPulsarAudioUrl(filePath) {
   if (!filePath || typeof filePath !== 'string') return '';
-  if (typeof window !== 'undefined' && window.Capacitor && typeof window.Capacitor.convertFileSrc === 'function') {
-    return window.Capacitor.convertFileSrc(filePath);
-  }
   const normalized = filePath.replace(/\\/g, '/');
   const pathPart = normalized.startsWith('/') ? normalized : '/' + normalized;
   return 'pulsar-audio://' + encodeURI(pathPart).replace(/#/g, '%23').replace(/\?/g, '%3F');
@@ -40,6 +35,7 @@ class App {
     this.onlineMusic = onlineMusic;
 
     this.currentView = 'all-songs'; // 'all-songs' | 'favorites' | 'recent' | 'discover' | playlistId
+    this.playbackContext = 'offline'; // 'offline' | 'online'
     this.tracks = [];
     this.activeTrack = null;
     this.audioFilesMap = new Map(); // id -> File object (for offline playback)
@@ -83,7 +79,6 @@ class App {
 
   async init() {
     this._cacheDOMElements();
-    try { initMobileUI(this); } catch (e) { console.warn('Mobile UI init warning:', e); }
     try { this._initVisualizer(); } catch (e) { console.warn('Visualizer init warning:', e); }
     try { this._initBluetoothMedia(); } catch (e) { console.warn('Bluetooth init warning:', e); }
     try { this._bindEvents(); } catch (e) { console.warn('Event binding warning:', e); }
@@ -846,7 +841,7 @@ class App {
     audioEngine.onError = async (e) => {
       console.warn('Playback error caught:', e);
       if (this.activeTrack && this.activeTrack.isOnline) {
-        const nativeApi = window.pulsarNative || window.electronAPI;
+        const nativeApi = window.electronAPI;
         if (nativeApi && typeof nativeApi.invalidateStream === 'function') {
           nativeApi.invalidateStream(this.activeTrack.audioUrl || this.activeTrack.id);
         }
@@ -1109,7 +1104,7 @@ class App {
 
   async _syncDownloadFolderTracks() {
     try {
-      const nativeApi = window.electronAPI || window.pulsarNative;
+      const nativeApi = window.electronAPI;
       if (!nativeApi || typeof nativeApi.scanDownloadFolder !== 'function') return;
 
       const res = await nativeApi.scanDownloadFolder();
@@ -1244,7 +1239,7 @@ class App {
       // Background offline cover caching & ID3 APIC repair
       setTimeout(async () => {
         try {
-          const nativeApi = window.electronAPI || window.pulsarNative;
+          const nativeApi = window.electronAPI;
           if (!nativeApi) return;
 
           let coverUpdated = false;
@@ -1648,9 +1643,21 @@ class App {
 
   // --- Audio Playback Operations ---
   async _playTrackFromList(list, index) {
-    playlistManager.setQueue(list, index);
-    const track = list[index];
-    await this._playTrack(track);
+    this.playbackContext = 'offline';
+    // Strictly isolate offline list: filter out any online or yt_ tracks from queue
+    const offlineList = (list || []).filter(t => !t.isOnline && !String(t.id).startsWith('yt_'));
+    const safeList = offlineList.length > 0 ? offlineList : (list || []);
+
+    const targetTrack = list ? list[index] : null;
+    let safeIndex = safeList.indexOf(targetTrack);
+    if (safeIndex === -1) safeIndex = Math.max(0, Math.min(index, safeList.length - 1));
+
+    playlistManager.setQueue(safeList, safeIndex);
+    this.radioQueue = playlistManager.queue;
+    const track = safeList[safeIndex];
+    if (track) {
+      await this._playTrack(track, false);
+    }
   }
 
   _findLocalDownloadedMatch(track) {
@@ -1683,7 +1690,7 @@ class App {
       playlistManager.queue[curIdx + 2]
     ].filter(Boolean);
 
-    const nativeApi = window.pulsarNative || window.electronAPI;
+    const nativeApi = window.electronAPI;
     if (!nativeApi || typeof nativeApi.getStreamUrl !== 'function') return;
 
     (async () => {
@@ -1730,6 +1737,12 @@ class App {
 
   async _playTrack(track, restartRadio = true) {
     if (!track) return;
+
+    // Strict safety guard: prevent online tracks or stream extraction during offline playback
+    if (this.playbackContext === 'offline' && (track.isOnline || String(track.id).startsWith('yt_') || (track.audioUrl && !track.filePath && !track.blobUrl && !this.audioFilesMap.has(track.id)))) {
+      console.warn('Blocked online track in offline playback context:', track.title);
+      return;
+    }
 
     // Prevent duplicate triggers if already resolving this exact track
     if (this._isResolvingStream && this._resolvingTrackId === track.id) {
@@ -1786,7 +1799,7 @@ class App {
       src = toPulsarAudioUrl(track.filePath);
     } else if (track.isOnline && track.audioUrl) {
       if (track.source === 'youtube' || track.source === 'ytmusic' || track.audioUrl.includes('youtube.com') || track.audioUrl.includes('youtu.be')) {
-        const nativeApi = window.pulsarNative || window.electronAPI;
+        const nativeApi = window.electronAPI;
         if (nativeApi && typeof nativeApi.getStreamUrl === 'function') {
           this._isResolvingStream = true;
           this._resolvingTrackId = track.id;
@@ -1885,8 +1898,8 @@ class App {
       // Self-Learning Taste Engine: Record listen and compute preferences
       tasteEngine.recordTrackStart(track);
 
-      // Auto-prime 50 Similar Songs Radio Queue - only for online tracks in discover view
-      if (track.isOnline && this.currentView === 'discover' && restartRadio && this.isRadioModeActive && (!this.radioSeedTrack || this.radioSeedTrack.id !== track.id)) {
+      // Auto-prime 50 Similar Songs Radio Queue - only for online tracks in discover view and online context
+      if (this.playbackContext === 'online' && track.isOnline && this.currentView === 'discover' && restartRadio && this.isRadioModeActive && (!this.radioSeedTrack || this.radioSeedTrack.id !== track.id)) {
         this._startSongRadio(track);
       } else {
         this._updateNowPlayingUI(track);
@@ -1908,8 +1921,10 @@ class App {
         });
       }
 
-      // Pre-warm the next queue tracks immediately for instantaneous skipping
-      this._prewarmUpcomingTracks();
+      // Pre-warm the next queue tracks immediately for instantaneous skipping (online only)
+      if (this.playbackContext === 'online') {
+        this._prewarmUpcomingTracks();
+      }
     } else {
       console.warn('Audio source unavailable for track:', track.title);
       this._showToast(`Audio for "${track.title}" is currently unavailable. Please try another track.`, 'error');
@@ -1946,9 +1961,33 @@ class App {
       return;
     }
 
-    // 2. Advance queue sequentially using playlistManager
+    // 2. Offline Mode Playback: STRICT LOCAL ISOLATION
+    if (this.playbackContext === 'offline') {
+      if (playlistManager.queue && playlistManager.queue.length > 0) {
+        const next = playlistManager.getNextTrack(this.isShuffle, this.loopMode === 'all', false, true);
+        if (next && !next.isOnline && !String(next.id).startsWith('yt_')) {
+          this.radioQueue = playlistManager.queue;
+          this._playTrack(next, false);
+          this._renderRadioScroller();
+          this._renderNowPlayingQueue();
+          this._updateNowPlayingUI(next);
+          this._updateReopenControlsVisibility();
+          return;
+        }
+      }
+      // Offline queue ended cleanly (or repeat is off): stop playback cleanly without touching online radio
+      audioEngine.pause();
+      audioEngine.seek(0);
+      this._setBufferingState(false);
+      if (this.bluetoothMedia) {
+        this.bluetoothMedia.updatePlaybackState(false);
+      }
+      return;
+    }
+
+    // 3. Online Discovery Playback
     if (playlistManager.queue && playlistManager.queue.length > 0) {
-      const next = playlistManager.getNextTrack(this.isShuffle, this.loopMode === 'all', false);
+      const next = playlistManager.getNextTrack(this.isShuffle, this.loopMode === 'all', false, false);
       if (next) {
         this.radioQueue = playlistManager.queue;
         this._playTrack(next, false);
@@ -1958,9 +1997,10 @@ class App {
         this._updateReopenControlsVisibility();
         this._prewarmUpcomingTracks();
 
-        // Replenish with 25 more similar songs if running low in radio mode
+        // Replenish with 25 more similar songs if running low in radio mode (ONLINE ONLY)
         if ((playlistManager.queue.length - playlistManager.queueIndex) < 5 && this.isRadioModeActive && this.activeTrack) {
           onlineMusic.getSimilarSongs(this.activeTrack, 25).then(extra => {
+            if (this.playbackContext !== 'online') return;
             if (extra && extra.length > 0) {
               extra.forEach(t => {
                 if (!playlistManager.queue.some(q => q.id === t.id)) {
@@ -1979,10 +2019,11 @@ class App {
       }
     }
 
-    // 3. Fallback: if queue reached end and smart radio is active, fetch more similar tracks
-    if (this.isRadioModeActive && this.activeTrack) {
+    // 4. Fallback in Online Mode: if queue reached end and smart radio is active
+    if (this.playbackContext === 'online' && this.isRadioModeActive && this.activeTrack) {
       this._startSongRadio(this.activeTrack).then(() => {
-        const next = playlistManager.getNextTrack(this.isShuffle, this.loopMode === 'all', false);
+        if (this.playbackContext !== 'online') return;
+        const next = playlistManager.getNextTrack(this.isShuffle, this.loopMode === 'all', false, false);
         if (next) {
           this._playTrack(next, false);
           this._renderRadioScroller();
@@ -2007,15 +2048,19 @@ class App {
     }
 
     if (playlistManager.queue && playlistManager.queue.length > 0) {
-      const prev = playlistManager.getPreviousTrack();
+      const isOffline = this.playbackContext === 'offline';
+      const prev = playlistManager.getPreviousTrack(isOffline);
       if (prev) {
+        if (isOffline && (prev.isOnline || String(prev.id).startsWith('yt_'))) return;
         this.radioQueue = playlistManager.queue;
         this._playTrack(prev, false);
         this._renderRadioScroller();
         this._renderNowPlayingQueue();
         this._updateNowPlayingUI(prev);
         this._updateReopenControlsVisibility();
-        this._prewarmUpcomingTracks();
+        if (!isOffline) {
+          this._prewarmUpcomingTracks();
+        }
       }
     }
   }
@@ -2031,6 +2076,9 @@ class App {
     this.isShuffle = !this.isShuffle;
     this.shuffleBtn.classList.toggle('active', this.isShuffle);
     db.setSetting('isShuffle', this.isShuffle);
+    if (this.isShuffle) {
+      playlistManager.resetShuffle(this.playbackContext === 'offline');
+    }
   }
 
   _toggleLoop() {
@@ -2955,7 +3003,7 @@ class App {
       // Hover pre-warm stream URL for 0ms response when clicked
       row.addEventListener('mouseenter', () => {
         if (track && track.isOnline && track.audioUrl && !this._findLocalDownloadedMatch(track)) {
-          const nativeApi = window.pulsarNative || window.electronAPI;
+          const nativeApi = window.electronAPI;
           if (nativeApi && typeof nativeApi.getStreamUrl === 'function') {
             nativeApi.getStreamUrl(track.audioUrl).catch(() => {});
           }
@@ -3098,9 +3146,13 @@ class App {
       `;
       card.addEventListener('click', () => {
         if (track.isOnline || (track.id && String(track.id).startsWith('yt_'))) {
+          this.playbackContext = 'online';
           this._playOnlineTrack(track);
         } else {
-          this._playTrack(track);
+          this.playbackContext = 'offline';
+          playlistManager.setQueue([track], 0);
+          this.radioQueue = playlistManager.queue;
+          this._playTrack(track, false);
         }
       });
       this.flowListenAgainList.appendChild(card);
@@ -3145,6 +3197,7 @@ class App {
       // Play Mix handler
       const playBtn = card.querySelector('.flow-playlist-play-btn');
       const startMix = async () => {
+        this.playbackContext = 'online';
         this._showToast(`Loading "${pl.title}" mix...`, 'info');
         try {
           const tracks = await onlineMusic.getPlaylistTracks(pl, 50);
@@ -3199,6 +3252,7 @@ class App {
   }
 
   _playAllQuickPicks() {
+    this.playbackContext = 'online';
     if (!this.currentQuickPicks || this.currentQuickPicks.length === 0) {
       if (this.flowTracks && this.flowTracks.length > 0) {
         this.currentQuickPicks = this.flowTracks.slice(0, 10);
@@ -3265,7 +3319,7 @@ class App {
         // Delete from library & permanently delete physical file from PC
         if (confirm(`Permanently delete "${track.title}" from your library and PC? This removes the audio file from your device.`)) {
           // 1. Delete physical audio file from PC disk
-          const nativeApi = window.electronAPI || window.pulsarNative;
+          const nativeApi = window.electronAPI;
           let physicalResult = null;
           if (nativeApi && nativeApi.deletePhysicalFile) {
             try {
@@ -4004,8 +4058,19 @@ class App {
             <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
           </button>
         `;
+        const localImg = row.querySelector('.quick-pick-img');
+        if (localImg) {
+          localImg.onerror = () => {
+            localImg.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24' fill='%238b5cf6'%3E%3Crect width='24' height='24' fill='%231a1e28'/%3E%3Cpath d='M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z'/%3E%3C/svg%3E";
+            localImg.onerror = null;
+          };
+        }
         row.addEventListener('click', () => {
-          playlistManager.setQueue(localMatches, localMatches.indexOf(track));
+          this.playbackContext = 'offline';
+          const localOnly = localMatches.filter(t => !t.isOnline && !String(t.id).startsWith('yt_'));
+          const safeMatches = localOnly.length > 0 ? localOnly : localMatches;
+          const idx = safeMatches.indexOf(track);
+          playlistManager.setQueue(safeMatches, idx >= 0 ? idx : 0);
           this.radioQueue = playlistManager.queue;
           this._playTrack(track, false);
           this._renderNowPlayingQueue();
@@ -4031,7 +4096,7 @@ class App {
 
       // Pre-warm the #1 search result stream URL immediately for instantaneous playback on click
       if (onlineTracks[0] && onlineTracks[0].audioUrl && !this._findLocalDownloadedMatch(onlineTracks[0])) {
-        const nativeApi = window.pulsarNative || window.electronAPI;
+        const nativeApi = window.electronAPI;
         if (nativeApi && typeof nativeApi.getStreamUrl === 'function') {
           nativeApi.getStreamUrl(onlineTracks[0].audioUrl).catch(() => {});
         }
@@ -4074,7 +4139,7 @@ class App {
         // Hover pre-warm stream URL for 0ms start
         card.addEventListener('mouseenter', () => {
           if (track && track.isOnline && track.audioUrl && !this._findLocalDownloadedMatch(track)) {
-            const nativeApi = window.pulsarNative || window.electronAPI;
+            const nativeApi = window.electronAPI;
             if (nativeApi && typeof nativeApi.getStreamUrl === 'function') {
               nativeApi.getStreamUrl(track.audioUrl).catch(() => {});
             }
@@ -4083,6 +4148,7 @@ class App {
 
         card.addEventListener('click', (e) => {
           if (e.target.closest('.quick-pick-dl-btn')) return;
+          this.playbackContext = 'online';
           if (onlineTracks && onlineTracks.length > 1) {
             playlistManager.setQueue(onlineTracks, idx);
             this.radioQueue = playlistManager.queue;
@@ -4119,6 +4185,7 @@ class App {
   _renderQuickPicks(tracks) {
     if (!this.flowQuickPicksGrid) return;
     this.flowQuickPicksGrid.innerHTML = '';
+    this.flowQuickPicksGrid.scrollLeft = 0;
 
     if (!tracks || tracks.length === 0) {
       tracks = DEFAULT_TRENDING_TRACKS.slice(0, 16);
@@ -4128,7 +4195,7 @@ class App {
 
     // Background pre-warm the stream URLs of the first 3 Quick Picks for instant playback on click
     if (tracks && tracks.length > 0) {
-      const nativeApi = window.pulsarNative || window.electronAPI;
+      const nativeApi = window.electronAPI;
       if (nativeApi && typeof nativeApi.getStreamUrl === 'function') {
         tracks.slice(0, 3).forEach((t, i) => {
           if (t && t.isOnline && t.audioUrl && !this._findLocalDownloadedMatch(t)) {
@@ -4151,7 +4218,7 @@ class App {
       card.title = `Play "${track.title}" - ${track.artist}`;
       card.innerHTML = `
         <div class="quick-pick-cover-wrap">
-          <img class="quick-pick-img" src="${this._escapeHtml(track.coverUrl || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'48\' height=\'48\' viewBox=\'0 0 24 24\' fill=\'%238b5cf6\'%3E%3Crect width=\'24\' height=\'24\' fill=\'%231a1e28\'/%3E%3Cpath d=\'M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z\'/%3E%3C/svg%3E')}" alt="${this._escapeHtml(track.title)}" loading="lazy">
+          <img class="quick-pick-img" src="${this._escapeHtml(track.coverUrl || '')}" alt="${this._escapeHtml(track.title)}" loading="lazy">
           <div class="quick-pick-play-overlay">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           </div>
@@ -4164,11 +4231,22 @@ class App {
           ${isDownloading ? '<span class="online-spinner" style="width:12px;height:12px;"></span>' : (isDownloaded ? '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' : '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>')}
         </button>
       `;
+      const onlineImg = card.querySelector('.quick-pick-img');
+      if (onlineImg) {
+        const fallbackSvg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24' fill='%238b5cf6'%3E%3Crect width='24' height='24' fill='%231a1e28'/%3E%3Cpath d='M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z'/%3E%3C/svg%3E";
+        if (!track.coverUrl) {
+          onlineImg.src = fallbackSvg;
+        }
+        onlineImg.onerror = () => {
+          onlineImg.src = fallbackSvg;
+          onlineImg.onerror = null;
+        };
+      }
 
       // Hover pre-warm stream URL for 0ms response when clicked
       card.addEventListener('mouseenter', () => {
         if (track && track.isOnline && track.audioUrl && !this._findLocalDownloadedMatch(track)) {
-          const nativeApi = window.pulsarNative || window.electronAPI;
+          const nativeApi = window.electronAPI;
           if (nativeApi && typeof nativeApi.getStreamUrl === 'function') {
             nativeApi.getStreamUrl(track.audioUrl).catch(() => {});
           }
@@ -4189,6 +4267,7 @@ class App {
 
       card.addEventListener('click', (e) => {
         if (e.target.closest('.quick-pick-dl-btn')) return;
+        this.playbackContext = 'online';
         if (tracks && tracks.length > 1) {
           playlistManager.setQueue(tracks, idx);
           this.radioQueue = playlistManager.queue;
@@ -4294,7 +4373,8 @@ class App {
    * Generates a 50-track similar radio playlist matching the seed track
    */
   async _startSongRadio(seedTrack) {
-    if (!seedTrack) return;
+    if (!seedTrack || this.playbackContext === 'offline') return;
+    this.playbackContext = 'online';
     this.radioSeedTrack = seedTrack;
 
     if (this.flowRadioQueuePanel) {
@@ -4357,6 +4437,7 @@ class App {
       `;
 
       card.addEventListener('click', () => {
+        this.playbackContext = 'online';
         playlistManager.queueIndex = idx;
         this.radioQueue = playlistManager.queue;
         this._playTrack(track, false);
@@ -4399,6 +4480,7 @@ class App {
 
   async _playOnlineTrack(track, restartRadio = true) {
     if (!track) return;
+    this.playbackContext = 'online';
     await this._playTrack(track, restartRadio);
   }
 
@@ -4422,7 +4504,7 @@ class App {
     this._showToast(`Downloading "${track.title}" to Pulsar Downloads...`, 'info');
 
     try {
-      const nativeApi = window.electronAPI || window.pulsarNative;
+      const nativeApi = window.electronAPI;
       if (nativeApi && nativeApi.downloadOnlineTrack) {
         const result = await nativeApi.downloadOnlineTrack(track);
         if (result && result.success) {
@@ -4541,7 +4623,7 @@ class App {
   }
 
   async _openDownloadFolder() {
-    const nativeApi = window.electronAPI || window.pulsarNative;
+    const nativeApi = window.electronAPI;
     if (nativeApi && nativeApi.openDownloadFolder) {
       await nativeApi.openDownloadFolder();
     } else {
@@ -4602,7 +4684,7 @@ class App {
     }
 
     let lastReportedPercent = -1;
-    const nativeApi = window.electronAPI || window.pulsarNative;
+    const nativeApi = window.electronAPI;
     if (nativeApi && nativeApi.onUpdateDownloadProgress) {
       nativeApi.onUpdateDownloadProgress((prog) => {
         if (prog.percent === lastReportedPercent) return;
@@ -4679,7 +4761,7 @@ class App {
   }
 
   async _checkUpdateStatus(isManual = false) {
-    const nativeApi = window.electronAPI || window.pulsarNative;
+    const nativeApi = window.electronAPI;
     if (!nativeApi || !nativeApi.checkForUpdates) return;
 
     try {
@@ -4735,7 +4817,7 @@ class App {
     }
 
     try {
-      const nativeApi = window.electronAPI || window.pulsarNative;
+      const nativeApi = window.electronAPI;
       const res = await nativeApi.downloadUpdate(this.updaterState.availableUpdate.downloadUrl);
       if (res && res.success) {
         this.updaterState.isDownloading = false;
@@ -4778,7 +4860,7 @@ class App {
     if (this.btnUpdateExecuteText) this.btnUpdateExecuteText.textContent = 'Installing & Restarting...';
 
     try {
-      const nativeApi = window.electronAPI || window.pulsarNative;
+      const nativeApi = window.electronAPI;
       await nativeApi.installUpdate(this.updaterState.downloadedInstallerPath);
     } catch (err) {
       this._showToast('Update installation failed: ' + (err.message || 'Error'), 'error');
