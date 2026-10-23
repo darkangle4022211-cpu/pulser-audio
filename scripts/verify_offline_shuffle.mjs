@@ -127,7 +127,7 @@ async function runOfflineShuffleQA() {
     if (!app) return { success: false, error: 'App not found on window' };
 
     const mockLocalTracks = [];
-    for (let i = 1; i <= 25; i++) {
+    for (let i = 1; i <= 23; i++) {
       mockLocalTracks.push({
         id: `local_track_${i}`,
         title: `Offline Song ${i}`,
@@ -139,6 +139,30 @@ async function runOfflineShuffleQA() {
         dateAdded: Date.now() - (25 - i) * 1000
       });
     }
+
+    // Add downloaded offline YouTube Music tracks (with yt_ prefix)
+    mockLocalTracks.push({
+      id: 'yt_khaab_123',
+      title: 'Khaab',
+      artist: 'Akhil',
+      album: 'YouTube Music',
+      duration: 202,
+      filePath: '/music/Khaab.m4a',
+      downloadedOffline: true,
+      isOnline: false,
+      dateAdded: Date.now() - 2000
+    });
+    mockLocalTracks.push({
+      id: 'yt_shape_of_you',
+      title: 'Shape of You',
+      artist: 'Ed Sheeran',
+      album: 'YouTube Music',
+      duration: 233,
+      filePath: '/music/Shape_of_You.m4a',
+      downloadedOffline: true,
+      isOnline: false,
+      dateAdded: Date.now() - 1000
+    });
 
     // Save to DB and assign to app
     for (const t of mockLocalTracks) {
@@ -205,12 +229,59 @@ async function runOfflineShuffleQA() {
     };
   });
 
-  const allPlayedLocal1 = test1Result.playedTracks.every(t => !t.isOnline && !t.id.startsWith('yt_'));
+  const allPlayedLocal1 = test1Result.playedTracks.every(t => !t.isOnline);
   const zeroOnlineApi1 = test1Result.apiCounters.getSimilarSongs === 0 && test1Result.apiCounters.getStreamUrl === 0;
 
   check('Playback context locked to "offline" on All Tracks playback', test1Result.initialContext === 'offline' && test1Result.finalContext === 'offline');
   check('20 consecutive shuffle advances produced 100% local offline tracks', allPlayedLocal1, `${test1Result.playedCount} tracks checked`);
   check('Zero online radio/similar API calls during 20 offline shuffle advances', zeroOnlineApi1, `similarSongs calls: ${test1Result.apiCounters.getSimilarSongs}, streamUrl calls: ${test1Result.apiCounters.getStreamUrl}`);
+
+  // =========================================================================
+  // TEST SUITE 1b: Exact Track Click & Name Matching (Downloaded & Local)
+  // =========================================================================
+  console.log('\n--- Test 1b: Exact Track Click & Name Matching (Downloaded & Local) ---');
+  const clickTestResult = await page.evaluate(async () => {
+    const app = window.pulsarApp;
+    app._switchView('all-songs');
+
+    // Find index of 'Khaab' (downloaded offline track with yt_ ID)
+    const khaabIdx = app.tracks.findIndex(t => t.id === 'yt_khaab_123');
+    await app._playTrackFromList(app.tracks, khaabIdx);
+    const playedKhaab = {
+      activeId: app.activeTrack?.id,
+      activeTitle: app.activeTrack?.title,
+      playerTitle: app.playerTitle.textContent,
+      playerArtist: app.playerArtist.textContent
+    };
+
+    // Find index of 'Shape of You'
+    const shapeIdx = app.tracks.findIndex(t => t.id === 'yt_shape_of_you');
+    await app._playTrackFromList(app.tracks, shapeIdx);
+    const playedShape = {
+      activeId: app.activeTrack?.id,
+      activeTitle: app.activeTrack?.title,
+      playerTitle: app.playerTitle.textContent,
+      playerArtist: app.playerArtist.textContent
+    };
+
+    return { playedKhaab, playedShape };
+  });
+
+  check('Clicking downloaded song "Khaab" plays "Khaab" with exact title & artist match',
+    clickTestResult.playedKhaab.activeId === 'yt_khaab_123' &&
+    clickTestResult.playedKhaab.activeTitle === 'Khaab' &&
+    clickTestResult.playedKhaab.playerTitle === 'Khaab' &&
+    clickTestResult.playedKhaab.playerArtist === 'Akhil',
+    `Active: "${clickTestResult.playedKhaab.playerTitle}" by ${clickTestResult.playedKhaab.playerArtist}`
+  );
+
+  check('Clicking downloaded song "Shape of You" plays "Shape of You" with exact title & artist match',
+    clickTestResult.playedShape.activeId === 'yt_shape_of_you' &&
+    clickTestResult.playedShape.activeTitle === 'Shape of You' &&
+    clickTestResult.playedShape.playerTitle === 'Shape of You' &&
+    clickTestResult.playedShape.playerArtist === 'Ed Sheeran',
+    `Active: "${clickTestResult.playedShape.playerTitle}" by ${clickTestResult.playedShape.playerArtist}`
+  );
 
   // =========================================================================
   // TEST SUITE 2: Offline Shuffle in a Custom Local Playlist

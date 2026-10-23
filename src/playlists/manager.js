@@ -209,7 +209,8 @@ class PlaylistManager {
     for (let i = 0; i < this.queue.length; i++) {
       const t = this.queue[i];
       if (!t) continue;
-      if (offlineOnly && (t.isOnline || String(t.id).startsWith('yt_'))) continue;
+      const isOnlineOnly = (t.isOnline || (t.audioUrl && !t.filePath)) && !t.downloadedOffline && !t.filePath && !t.blobUrl;
+      if (offlineOnly && isOnlineOnly) continue;
       validIndices.push(i);
     }
     if (validIndices.length === 0) return null;
@@ -266,7 +267,8 @@ class PlaylistManager {
     for (let i = 0; i < this.queue.length; i++) {
       const t = this.queue[i];
       if (!t) continue;
-      if (offlineOnly && (t.isOnline || String(t.id).startsWith('yt_'))) continue;
+      const isOnlineOnly = (t.isOnline || (t.audioUrl && !t.filePath)) && !t.downloadedOffline && !t.filePath && !t.blobUrl;
+      if (offlineOnly && isOnlineOnly) continue;
       validIndices.push(i);
     }
     if (validIndices.length === 0) return null;

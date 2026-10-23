@@ -1644,19 +1644,30 @@ class App {
   // --- Audio Playback Operations ---
   async _playTrackFromList(list, index) {
     this.playbackContext = 'offline';
-    // Strictly isolate offline list: filter out any online or yt_ tracks from queue
-    const offlineList = (list || []).filter(t => !t.isOnline && !String(t.id).startsWith('yt_'));
-    const safeList = offlineList.length > 0 ? offlineList : (list || []);
+    if (!list || list.length === 0) return;
 
-    const targetTrack = list ? list[index] : null;
-    let safeIndex = safeList.indexOf(targetTrack);
-    if (safeIndex === -1) safeIndex = Math.max(0, Math.min(index, safeList.length - 1));
+    // Filter out only purely online tracks that are NOT downloaded offline
+    const offlineList = list.filter(t => !t.isOnline || t.downloadedOffline || t.filePath || t.blobUrl || this.audioFilesMap.has(t.id));
+    const safeList = offlineList.length > 0 ? offlineList : list;
+
+    const targetTrack = list[index];
+    let safeIndex = targetTrack ? safeList.indexOf(targetTrack) : -1;
+    if (safeIndex === -1 && targetTrack) {
+      safeIndex = safeList.findIndex(t => t.id === targetTrack.id);
+    }
+    if (safeIndex === -1) {
+      safeIndex = Math.max(0, Math.min(index, safeList.length - 1));
+    }
 
     playlistManager.setQueue(safeList, safeIndex);
     this.radioQueue = playlistManager.queue;
     const track = safeList[safeIndex];
     if (track) {
       await this._playTrack(track, false);
+      this._renderRadioScroller();
+      this._renderNowPlayingQueue();
+      this._updateNowPlayingUI(track);
+      this._updateReopenControlsVisibility();
     }
   }
 
@@ -1738,8 +1749,9 @@ class App {
   async _playTrack(track, restartRadio = true) {
     if (!track) return;
 
-    // Strict safety guard: prevent online tracks or stream extraction during offline playback
-    if (this.playbackContext === 'offline' && (track.isOnline || String(track.id).startsWith('yt_') || (track.audioUrl && !track.filePath && !track.blobUrl && !this.audioFilesMap.has(track.id)))) {
+    // Strict safety guard: prevent non-downloaded purely online tracks from playing in offline context
+    const isPurelyOnline = (track.isOnline || (track.audioUrl && !track.filePath && !track.blobUrl && !this.audioFilesMap.has(track.id))) && !track.downloadedOffline && !track.filePath && !track.blobUrl && !this.audioFilesMap.has(track.id);
+    if (this.playbackContext === 'offline' && isPurelyOnline) {
       console.warn('Blocked online track in offline playback context:', track.title);
       return;
     }
@@ -1965,7 +1977,8 @@ class App {
     if (this.playbackContext === 'offline') {
       if (playlistManager.queue && playlistManager.queue.length > 0) {
         const next = playlistManager.getNextTrack(this.isShuffle, this.loopMode === 'all', false, true);
-        if (next && !next.isOnline && !String(next.id).startsWith('yt_')) {
+        const isNextOnlineOnly = next && (next.isOnline || (next.audioUrl && !next.filePath)) && !next.downloadedOffline && !next.filePath && !next.blobUrl && !this.audioFilesMap.has(next.id);
+        if (next && !isNextOnlineOnly) {
           this.radioQueue = playlistManager.queue;
           this._playTrack(next, false);
           this._renderRadioScroller();
@@ -2051,7 +2064,8 @@ class App {
       const isOffline = this.playbackContext === 'offline';
       const prev = playlistManager.getPreviousTrack(isOffline);
       if (prev) {
-        if (isOffline && (prev.isOnline || String(prev.id).startsWith('yt_'))) return;
+        const isPrevOnlineOnly = (prev.isOnline || (prev.audioUrl && !prev.filePath)) && !prev.downloadedOffline && !prev.filePath && !prev.blobUrl && !this.audioFilesMap.has(prev.id);
+        if (isOffline && isPrevOnlineOnly) return;
         this.radioQueue = playlistManager.queue;
         this._playTrack(prev, false);
         this._renderRadioScroller();
@@ -3145,7 +3159,8 @@ class App {
         <div class="listen-card-artist">${this._escapeHtml(track.artist)}</div>
       `;
       card.addEventListener('click', () => {
-        if (track.isOnline || (track.id && String(track.id).startsWith('yt_'))) {
+        const isTrackOnlineOnly = (track.isOnline || (track.audioUrl && !track.filePath)) && !track.downloadedOffline && !track.filePath && !track.blobUrl && !this.audioFilesMap.has(track.id);
+        if (isTrackOnlineOnly) {
           this.playbackContext = 'online';
           this._playOnlineTrack(track);
         } else {
@@ -4067,7 +4082,7 @@ class App {
         }
         row.addEventListener('click', () => {
           this.playbackContext = 'offline';
-          const localOnly = localMatches.filter(t => !t.isOnline && !String(t.id).startsWith('yt_'));
+          const localOnly = localMatches.filter(t => !t.isOnline || t.downloadedOffline || t.filePath || t.blobUrl || this.audioFilesMap.has(t.id));
           const safeMatches = localOnly.length > 0 ? localOnly : localMatches;
           const idx = safeMatches.indexOf(track);
           playlistManager.setQueue(safeMatches, idx >= 0 ? idx : 0);

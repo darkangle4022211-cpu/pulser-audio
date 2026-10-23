@@ -38,10 +38,15 @@ mkdir -p "$DIR/releases"
 if [ -f "$DIR/dist-electron/Pulsar Music Player Setup ${VERSION}.exe" ]; then
   cp -f "$DIR/dist-electron/Pulsar Music Player Setup ${VERSION}.exe" "$DIR/releases/"
   cp -f "$DIR/dist-electron/Pulsar Music Player Setup ${VERSION}.exe" "$HOME/"
+  ln -sf "Pulsar Music Player Setup ${VERSION}.exe" "$DIR/dist-electron/Pulsar-Music-Player-Setup-${VERSION}.exe"
+fi
+if [ -f "$DIR/dist-electron/Pulsar Music Player Setup ${VERSION}.exe.blockmap" ]; then
+  ln -sf "Pulsar Music Player Setup ${VERSION}.exe.blockmap" "$DIR/dist-electron/Pulsar-Music-Player-Setup-${VERSION}.exe.blockmap"
 fi
 if [ -f "$DIR/dist-electron/Pulsar Music Player Portable ${VERSION}.exe" ]; then
   cp -f "$DIR/dist-electron/Pulsar Music Player Portable ${VERSION}.exe" "$DIR/releases/"
   cp -f "$DIR/dist-electron/Pulsar Music Player Portable ${VERSION}.exe" "$HOME/"
+  ln -sf "Pulsar Music Player Portable ${VERSION}.exe" "$DIR/dist-electron/Pulsar-Music-Player-Portable-${VERSION}.exe"
 fi
 if [ -f "$DIR/dist-electron/latest.yml" ]; then
   cp -f "$DIR/dist-electron/latest.yml" "$DIR/releases/"

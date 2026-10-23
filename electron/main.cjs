@@ -2055,14 +2055,18 @@ ipcMain.handle('download-update', async () => {
 });
 
 ipcMain.handle('install-update', async () => {
-  log.info('User triggered Restart & Apply Update via autoUpdater.quitAndInstall(false, true)...');
+  log.info('User triggered Restart & Apply Update via autoUpdater.quitAndInstall(true, true)...');
   if (tray && !tray.isDestroyed()) {
     try { tray.destroy(); } catch (_) {}
     tray = null;
   }
+  // Immediately close and destroy all windows to cleanly release any file locks on Windows
+  BrowserWindow.getAllWindows().forEach(win => {
+    try { win.destroy(); } catch (_) {}
+  });
   setImmediate(() => {
-    // isSilent: false, isForceRunAfter: true (applies silently in background and relaunches app)
-    autoUpdater.quitAndInstall(false, true);
+    // isSilent: true (runs with /S flag, no installation wizard), isForceRunAfter: true (relaunches immediately)
+    autoUpdater.quitAndInstall(true, true);
   });
   return { success: true };
 });

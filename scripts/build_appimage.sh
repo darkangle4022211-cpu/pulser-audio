@@ -33,5 +33,9 @@ if [ -f "$DIR/dist-electron/latest-linux.yml" ]; then
   cp -f "$DIR/dist-electron/latest-linux.yml" "$DIR/releases/latest-linux.yml"
 fi
 
+if [ -f "$DIR/dist-electron/Pulsar Music Player-${VERSION}.AppImage" ]; then
+  ln -sf "Pulsar Music Player-${VERSION}.AppImage" "$DIR/dist-electron/Pulsar-Music-Player-${VERSION}.AppImage"
+fi
+
 echo "=== SUCCESS: Linux AppImage built ==="
 ls -lh dist-electron/*.AppImage dist-electron/latest-linux.yml 2>/dev/null || true

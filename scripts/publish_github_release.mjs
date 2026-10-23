@@ -14,23 +14,21 @@ const REPO = "darkangle4022211-cpu/pulser-audio";
 const pkg = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
 const VERSION = pkg.version;
 const TAG = `v${VERSION}`;
-const RELEASE_NAME = `v${VERSION} - Professional Background Auto-Updates (AppImage & NSIS)`;
+const RELEASE_NAME = `v${VERSION} - Library Song Click Alignment & Fast Differential Auto-Updates`;
 const RELEASE_BODY = `### Pulsar Music Player v${VERSION} Production Release
 
 #### 🚀 What's New:
-- **Professional Seamless Background Auto-Updates:** Linux and Windows desktop updates now download quietly in the background without intrusive interruption (matching apps like Brave, VS Code, and Discord).
-- **Zero-Password Linux AppImage Updates:** Portable Linux AppImage auto-updater natively downloads updates and seamlessly restarts into the new version with zero \`pkexec\` root password prompts.
-- **Silent Per-User Windows Updates:** Windows NSIS installer runs as per-user with silent background download and instant 1-click relaunch.
-- **Elegant Update Notification:** In-app update notification lets you restart with one click whenever you are ready.
-- **Offline Shuffle Isolation:** Shuffling offline playlists or All Tracks stays strictly within local offline tracks with zero online streaming leaks.
-- **Robust Playback Context:** Explicitly isolates offline library playback from online Discover & Flow streaming.
+- **Exact Song Click Alignment & Name Matching:** Clicking any song in All Tracks or custom playlists (both local files and downloaded YouTube Music songs) plays that exact song with 100% matched title, artist, and album art.
+- **Downloaded Offline Songs Retained in Queue:** Downloaded offline songs are fully recognized as local library tracks in shuffle and sequential playback.
+- **Fast Differential Windows Auto-Updates:** Published with .blockmap differential chunk metadata for rapid background updates without downloading large packages.
+- **Reliable Windows Restart & Clean Teardown:** Windows updater closes handles before silent relaunch with zero hang.
+- **Pure Portable Linux AppImage:** Seamless background updates with zero root \`pkexec\` password prompts.
 - **Ultra-Low CPU & GPU Footprint:** Low resource utilization with zero idle load (<0.5%).
 
 #### 📦 Downloads:
-- **Linux Portable AppImage (Auto-Updating):** \`Pulsar Music Player-${VERSION}.AppImage\`
-- **Windows Installer (Auto-Updating):** \`Pulsar Music Player Setup ${VERSION}.exe\`
-- **Windows Standalone Portable:** \`Pulsar Music Player Portable ${VERSION}.exe\`
-- **Linux Debian Package:** \`pulsar-music-player_${VERSION}_amd64.deb\` (if required)
+- **Linux Portable AppImage (Auto-Updating):** \`Pulsar-Music-Player-${VERSION}.AppImage\`
+- **Windows Installer (Auto-Updating):** \`Pulsar-Music-Player-Setup-${VERSION}.exe\`
+- **Windows Standalone Portable:** \`Pulsar-Music-Player-Portable-${VERSION}.exe\`
 `;
 
 function githubRequest(url, options = {}, data = null) {
@@ -191,16 +189,16 @@ async function main() {
       path: path.join(projectRoot, 'dist-electron', `Pulsar-Music-Player-Setup-${VERSION}.exe`)
     },
     {
+      name: `Pulsar-Music-Player-Setup-${VERSION}.exe.blockmap`,
+      path: path.join(projectRoot, 'dist-electron', `Pulsar-Music-Player-Setup-${VERSION}.exe.blockmap`)
+    },
+    {
       name: `Pulsar-Music-Player-Portable-${VERSION}.exe`,
       path: path.join(projectRoot, 'dist-electron', `Pulsar-Music-Player-Portable-${VERSION}.exe`)
     },
     {
       name: 'latest.yml',
       path: path.join(projectRoot, 'dist-electron', 'latest.yml')
-    },
-    {
-      name: `pulsar-music-player_${VERSION}_amd64.deb`,
-      path: path.join(projectRoot, 'dist-electron', `pulsar-music-player_${VERSION}_amd64.deb`)
     }
   ];
 
