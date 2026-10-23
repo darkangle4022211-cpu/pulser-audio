@@ -4719,6 +4719,12 @@ class App {
       });
     }
 
+    if (nativeApi && nativeApi.onUpdateDownloaded) {
+      nativeApi.onUpdateDownloaded((info) => {
+        this._handleUpdateDownloaded(info);
+      });
+    }
+
     // Quiet background update check 2.5s after launch, then every hour
     setTimeout(() => this._checkUpdateStatus(false), 2500);
     setInterval(() => this._checkUpdateStatus(false), 3600000);
@@ -4760,6 +4766,34 @@ class App {
     }
   }
 
+  _handleUpdateDownloaded(info) {
+    this.updaterState.isDownloading = false;
+    this.updaterState.isReadyToInstall = true;
+    if (this.btnUpdateAvailable) {
+      this.btnUpdateAvailable.classList.add('is-visible', 'ready-to-install');
+      this.btnUpdateAvailable.style.display = 'inline-flex';
+      this.btnUpdateAvailable.title = 'A new version of Pulsar is ready. Click to restart now.';
+      if (this.updateBtnText) {
+        this.updateBtnText.textContent = 'Restart Now';
+      }
+    }
+    if (this.updateProgressBlock) this.updateProgressBlock.style.display = 'block';
+    if (this.updateProgressBarFill) this.updateProgressBarFill.style.width = '100%';
+    if (this.updateProgressPercent) this.updateProgressPercent.textContent = '100%';
+    if (this.updateProgressLabel) this.updateProgressLabel.textContent = 'A new version of Pulsar is ready. Restart to update.';
+    if (this.btnUpdateExecute) {
+      this.btnUpdateExecute.disabled = false;
+      if (this.btnUpdateExecuteText) this.btnUpdateExecuteText.textContent = 'Restart Now';
+    }
+    if (this.btnUpdateDismiss) this.btnUpdateDismiss.textContent = 'Later (On App Quit)';
+
+    // Show non-intrusive notification toast
+    const isModalOpen = this.updateModal && (this.updateModal.classList.contains('active') || this.updateModal.style.display !== 'none');
+    if (!isModalOpen) {
+      this._showToast('🎉 A new version of Pulsar is ready. Restart to update.', 'success');
+    }
+  }
+
   async _checkUpdateStatus(isManual = false) {
     const nativeApi = window.electronAPI;
     if (!nativeApi || !nativeApi.checkForUpdates) return;
@@ -4796,10 +4830,6 @@ class App {
   }
 
   async _startUpdateDownloadAndInstall() {
-    if (!this.updaterState.availableUpdate || !this.updaterState.availableUpdate.downloadUrl) {
-      this._showToast('Update download link not found', 'warning');
-      return;
-    }
     if (this.updaterState.isReadyToInstall) {
       this._applyDownloadedUpdate();
       return;
@@ -4808,39 +4838,18 @@ class App {
     this.updaterState.isDownloading = true;
 
     if (this.btnUpdateExecute) this.btnUpdateExecute.disabled = true;
-    if (this.btnUpdateExecuteText) this.btnUpdateExecuteText.textContent = 'Downloading...';
+    if (this.btnUpdateExecuteText) this.btnUpdateExecuteText.textContent = 'Downloading in Background...';
     if (this.updateProgressBlock) this.updateProgressBlock.style.display = 'block';
     if (this.updateBgBanner) this.updateBgBanner.style.display = 'flex';
     if (this.btnUpdateDismiss) this.btnUpdateDismiss.textContent = 'Listen to Music (Background Update)';
     if (this.btnUpdateAvailable) {
-      this.btnUpdateAvailable.title = 'Pulsar is updating in the background. You can safely close the window and enjoy your music.';
+      this.btnUpdateAvailable.title = 'Pulsar is updating in the background. You can safely enjoy your music.';
     }
 
     try {
       const nativeApi = window.electronAPI;
-      const res = await nativeApi.downloadUpdate(this.updaterState.availableUpdate.downloadUrl);
-      if (res && res.success) {
-        this.updaterState.isDownloading = false;
-        this.updaterState.isReadyToInstall = true;
-        this.updaterState.downloadedInstallerPath = res.path;
-
-        if (this.updateProgressBarFill) this.updateProgressBarFill.style.width = '100%';
-        if (this.updateProgressPercent) this.updateProgressPercent.textContent = '100%';
-        if (this.updateProgressLabel) this.updateProgressLabel.textContent = 'Download Complete! Ready to install.';
-        if (this.btnUpdateExecute) this.btnUpdateExecute.disabled = false;
-        if (this.btnUpdateExecuteText) this.btnUpdateExecuteText.textContent = 'Restart & Apply Update';
-        if (this.btnUpdateDismiss) this.btnUpdateDismiss.textContent = 'Finish Music First';
-        if (this.updateBtnText) this.updateBtnText.textContent = 'Restart & Update';
-        if (this.btnUpdateAvailable) {
-          this.btnUpdateAvailable.title = 'Pulsar update is ready! Click to apply and restart whenever you finish your music.';
-        }
-
-        // Non-intrusive toast notification if user has closed modal to listen to music
-        const isModalOpen = this.updateModal && (this.updateModal.classList.contains('active') || this.updateModal.style.display !== 'none');
-        if (!isModalOpen) {
-          this._showToast('🎉 Pulsar update ready! Click Restart & Update when your music finishes.', 'success');
-        }
-      } else {
+      const res = await nativeApi.downloadUpdate();
+      if (!res || !res.success) {
         throw new Error(res?.error || 'Download failed');
       }
     } catch (err) {
@@ -4848,22 +4857,20 @@ class App {
       this.updaterState.isDownloading = false;
       if (this.btnUpdateExecute) this.btnUpdateExecute.disabled = false;
       if (this.btnUpdateExecuteText) this.btnUpdateExecuteText.textContent = 'Retry Update';
-      if (this.updateProgressLabel) this.updateProgressLabel.textContent = 'Update failed: ' + (err.message || 'Error');
-      this._showToast('Update failed: ' + (err.message || 'Error'), 'error');
+      if (this.updateProgressLabel) this.updateProgressLabel.textContent = 'Update check notice: ' + (err.message || 'Error');
     }
   }
 
   async _applyDownloadedUpdate() {
-    if (!this.updaterState.downloadedInstallerPath) return;
-    this._showToast('Installing update & restarting...', 'info');
+    this._showToast('Restarting Pulsar to apply update...', 'info');
     if (this.btnUpdateExecute) this.btnUpdateExecute.disabled = true;
-    if (this.btnUpdateExecuteText) this.btnUpdateExecuteText.textContent = 'Installing & Restarting...';
+    if (this.btnUpdateExecuteText) this.btnUpdateExecuteText.textContent = 'Restarting...';
 
     try {
       const nativeApi = window.electronAPI;
-      await nativeApi.installUpdate(this.updaterState.downloadedInstallerPath);
+      await nativeApi.installUpdate();
     } catch (err) {
-      this._showToast('Update installation failed: ' + (err.message || 'Error'), 'error');
+      this._showToast('Update restart failed: ' + (err.message || 'Error'), 'error');
       if (this.btnUpdateExecute) this.btnUpdateExecute.disabled = false;
     }
   }

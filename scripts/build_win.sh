@@ -33,5 +33,19 @@ cp -r test-tracks dist/ 2>/dev/null || true
 echo "2. Packaging Windows executables with electron-builder..."
 npx electron-builder --win --x64
 
+# 4. Copy to releases and home directory
+mkdir -p "$DIR/releases"
+if [ -f "$DIR/dist-electron/Pulsar Music Player Setup ${VERSION}.exe" ]; then
+  cp -f "$DIR/dist-electron/Pulsar Music Player Setup ${VERSION}.exe" "$DIR/releases/"
+  cp -f "$DIR/dist-electron/Pulsar Music Player Setup ${VERSION}.exe" "$HOME/"
+fi
+if [ -f "$DIR/dist-electron/Pulsar Music Player Portable ${VERSION}.exe" ]; then
+  cp -f "$DIR/dist-electron/Pulsar Music Player Portable ${VERSION}.exe" "$DIR/releases/"
+  cp -f "$DIR/dist-electron/Pulsar Music Player Portable ${VERSION}.exe" "$HOME/"
+fi
+if [ -f "$DIR/dist-electron/latest.yml" ]; then
+  cp -f "$DIR/dist-electron/latest.yml" "$DIR/releases/"
+fi
+
 echo "=== Windows build complete! Check dist-electron/ ==="
-ls -lh dist-electron/*.exe 2>/dev/null || true
+ls -lh dist-electron/*.exe dist-electron/latest.yml 2>/dev/null || true

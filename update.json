@@ -1,31 +1,37 @@
 {
   "name": "pulser audio",
   "repo": "darkangle4022211-cpu/pulser-audio",
-  "version": "1.1.4",
-  "tag": "v1.1.4",
-  "changelog": "\u2022 Offline Shuffle Isolation: Shuffling offline playlists or All Tracks stays strictly within local offline tracks with zero online streaming leaks\n\u2022 Robust Playback Context: Seamlessly isolates offline library playback from online Discover & Flow streaming\n\u2022 Clean Offline Queue End: Reaching the end of an offline playlist stops cleanly or loops locally with repeat\n\u2022 Pure Desktop Electron Experience: Full Linux (.deb) and Windows (.exe) desktop audio playback\n\nIf you're facing a problem, feel free to contact the developer:\nEmail: hamza.zafar4022211@gmail.com",
+  "version": "1.1.5",
+  "tag": "v1.1.5",
+  "changelog": "\u2022 Professional Seamless Background Auto-Updates: Linux and Windows desktop updates download silently in the background (matching apps like Brave, VS Code, Discord)\n\u2022 Zero-Password Linux AppImage Updates: Portable Linux AppImage updates seamlessly with zero pkexec root password prompts\n\u2022 Silent Per-User Windows Updates: Windows NSIS installer runs per-user with 1-click relaunch\n\u2022 Offline Shuffle Isolation: Shuffling offline playlists or All Tracks stays strictly within local offline tracks\n\nIf you're facing a problem, feel free to contact the developer:\nEmail: hamza.zafar4022211@gmail.com",
   "support": {
     "message": "If you're facing a problem, feel free to contact the developer:",
     "email": "hamza.zafar4022211@gmail.com"
   },
   "platforms": {
     "linux-deb-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.4/pulsar-music-player_1.1.4_amd64.deb",
-      "sha256": "d11c4926ee969d782391f9c5f32577a1ebf23ccf5d7c00048f0e5bc23b795e1c",
-      "size": 255582914,
-      "filename": "pulsar-music-player_1.1.4_amd64.deb"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.5/pulsar-music-player_1.1.5_amd64.deb",
+      "sha256": "07f686fcbeb6ca509875255e9cabb26a359a417618d99c10024b7417cc1bd404",
+      "size": 256102376,
+      "filename": "pulsar-music-player_1.1.5_amd64.deb"
     },
     "win-setup-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.4/Pulsar.Music.Player.Setup.1.1.4.exe",
-      "sha256": "40903bb0d27ca713c717eb920a1c27cf6f201a9a61190d2d9d9e5dced42d691d",
-      "size": 169995654,
-      "filename": "Pulsar Music Player Setup 1.1.4.exe"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.5/Pulsar.Music.Player.Setup.1.1.5.exe",
+      "sha256": "d4dcf1166b8d98362443346f6e35744df49b2feeb0bb019099657d031118df7f",
+      "size": 170566495,
+      "filename": "Pulsar Music Player Setup 1.1.5.exe"
     },
     "win-portable-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.4/Pulsar.Music.Player.Portable.1.1.4.exe",
-      "sha256": "5c91dc9ce8dfac3bdf7e45b87e8a6fb0cb8abbaf63d0c3201af70c50fb36fae5",
-      "size": 169753854,
-      "filename": "Pulsar Music Player Portable 1.1.4.exe"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.5/Pulsar.Music.Player.Portable.1.1.5.exe",
+      "sha256": "97cc6c495acd4c68c5e5ae355fd238f8d14ba57ddcc8ad33526d1a497796abe9",
+      "size": 170324714,
+      "filename": "Pulsar Music Player Portable 1.1.5.exe"
+    },
+    "linux-appimage-x64": {
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.5/Pulsar-Music-Player-1.1.5.AppImage",
+      "sha256": "e503e4f802963455d01768588822a928a9a689d5caaaadd036373e37d2191d71",
+      "size": 227255374,
+      "filename": "Pulsar-Music-Player-1.1.5.AppImage"
     }
   }
 }

@@ -86,7 +86,7 @@ async function runOfflineShuffleQA() {
       selectAudioFiles: async () => ({ cancelled: true, filePaths: [] }),
       selectAudioFolder: async () => ({ cancelled: true, folderPath: '' }),
       scanDownloadFolder: async () => ({ success: true, files: [] }),
-      checkForUpdates: async () => ({ updateAvailable: false, currentVersion: '1.1.4' }),
+      checkForUpdates: async () => ({ updateAvailable: false, currentVersion: '1.1.5' }),
       notifyTrackChange: () => {},
       onMediaKey: () => {},
       searchOnlineMusic: async () => {

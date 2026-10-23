@@ -1893,15 +1893,21 @@ app.whenReady().then(() => {
   registerMediaKeys();
   initStreamResolver();
 
-  // Quiet background check 3 seconds after launch
+  // Quiet background update check 3.5 seconds after launch
   setTimeout(async () => {
     try {
-      const update = await checkOnlineUpdate();
-      if (update && update.updateAvailable && mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('update-available-detected', update);
+      if (app.isPackaged) {
+        autoUpdater.checkForUpdates().catch(err => log.warn('Initial background update check:', err.message));
       }
     } catch (_) {}
-  }, 3000);
+  }, 3500);
+
+  // Periodic background update check every 2 hours
+  setInterval(() => {
+    if (app.isPackaged) {
+      autoUpdater.checkForUpdates().catch(err => log.warn('Periodic background update check:', err.message));
+    }
+  }, 2 * 60 * 60 * 1000);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
@@ -1931,462 +1937,132 @@ app.on('window-all-closed', () => {
 });
 
 // ============================================================================
-// Online Auto-Update Engine (GitHub Releases & update.json)
+// Professional Background Auto-Update Engine (Universal electron-updater)
 // ============================================================================
-const GITHUB_REPO = 'darkangle4022211-cpu/pulser-audio';
-let APP_VERSION = '1.0.0';
-try {
-  const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
-  if (pkg.version) APP_VERSION = pkg.version;
-} catch (_) {}
+const { autoUpdater } = require('electron-updater');
+const log = require('electron-log');
 
-function compareVersions(v1, v2) {
-  const p1 = (v1 || '').replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
-  const p2 = (v2 || '').replace(/^v/i, '').split('.').map(n => parseInt(n, 10) || 0);
-  for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
-    const a = p1[i] || 0;
-    const b = p2[i] || 0;
-    if (a > b) return 1;
-    if (a < b) return -1;
-  }
-  return 0;
-}
+// Configure logger
+log.transports.file.level = 'info';
+autoUpdater.logger = log;
 
-function fetchJson(url) {
-  return new Promise((resolve, reject) => {
-    const proto = url.startsWith('https:') ? https : http;
-    const req = proto.get(url, {
-      headers: {
-        'User-Agent': 'PulsarAudio-Updater/' + APP_VERSION,
-        'Accept': 'application/vnd.github.v3+json, application/json'
-      }
-    }, (res) => {
-      if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
-        return resolve(fetchJson(res.headers.location));
-      }
-      if (res.statusCode !== 200) {
-        return reject(new Error('HTTP ' + res.statusCode));
-      }
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => {
-        try {
-          resolve(JSON.parse(data));
-        } catch (e) {
-          reject(e);
-        }
-      });
-    });
-    req.on('error', reject);
-    req.setTimeout(8000, () => {
-      req.destroy();
-      reject(new Error('Timeout'));
-    });
-  });
-}
+// Universal silent background download & auto-install on app quit
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+autoUpdater.allowPrerelease = false;
+autoUpdater.allowDowngrade = false;
 
-async function checkOnlineUpdate() {
-  try {
-    // 1. Try GitHub Releases API first
-    const releaseUrl = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
-    let rel = null;
-    try {
-      rel = await fetchJson(releaseUrl);
-    } catch (err) {
-      // 2. Fallback to direct release asset update.json or raw repo update.json
-      try {
-        const directJsonUrl = `https://github.com/${GITHUB_REPO}/releases/latest/download/update.json`;
-        const directManifest = await fetchJson(directJsonUrl);
-        if (directManifest && directManifest.version) {
-          const isWin = process.platform === 'win32';
-          const platformKey = isWin ? 'win-setup-x64' : 'linux-deb-x64';
-          const platformData = directManifest.platforms?.[platformKey] || directManifest.platforms?.['linux-deb-x64'];
-          const downloadUrl = platformData?.url || '';
-          if (compareVersions(directManifest.version, APP_VERSION) > 0) {
-            return {
-              updateAvailable: true,
-              currentVersion: APP_VERSION,
-              latestVersion: directManifest.version,
-              releaseNotes: (directManifest.changelog && directManifest.changelog.trim())
-                ? directManifest.changelog.trim()
-                : 'Performance optimization, hardware acceleration, and stability improvements.',
-              downloadUrl,
-              filename: platformData?.filename || (isWin ? 'Pulsar Music Player Setup.exe' : 'pulsar-music-player_latest_amd64.deb'),
-              size: platformData?.size || 0
-            };
-          }
-        }
-      } catch (_) {
-        try {
-          const rawJsonUrl = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/update.json`;
-          const rawManifest = await fetchJson(rawJsonUrl);
-          if (rawManifest && rawManifest.version) {
-            const isWin = process.platform === 'win32';
-            const platformKey = isWin ? 'win-setup-x64' : 'linux-deb-x64';
-            const platformData = rawManifest.platforms?.[platformKey] || rawManifest.platforms?.['linux-deb-x64'];
-            const downloadUrl = platformData?.url || '';
-            if (compareVersions(rawManifest.version, APP_VERSION) > 0) {
-              return {
-                updateAvailable: true,
-                currentVersion: APP_VERSION,
-                latestVersion: rawManifest.version,
-                releaseNotes: (rawManifest.changelog && rawManifest.changelog.trim())
-                  ? rawManifest.changelog.trim()
-                  : 'Performance optimization, hardware acceleration, and stability improvements.',
-                downloadUrl,
-                filename: platformData?.filename || (isWin ? 'Pulsar Music Player Setup.exe' : 'pulsar-music-player_latest_amd64.deb'),
-                size: platformData?.size || 0
-              };
-            }
-          }
-        } catch (__) {}
-      }
-      return { updateAvailable: false, error: err.message };
-    }
+// Track downloaded update state
+let downloadedUpdateInfo = null;
 
-    if (!rel || !rel.tag_name) {
-      return { updateAvailable: false };
-    }
+// Standard event listeners
+autoUpdater.on('checking-for-update', () => {
+  log.info('Auto-updater: Checking for update...');
+});
 
-    const latestVersion = rel.tag_name.replace(/^v/i, '');
-    if (compareVersions(latestVersion, APP_VERSION) <= 0) {
-      return { updateAvailable: false, currentVersion: APP_VERSION, latestVersion };
-    }
-
-    // Select platform asset (.exe on Windows, .deb on Linux)
-    const isWin = process.platform === 'win32';
-    const targetAsset = isWin
-      ? ((rel.assets || []).find(a => a.name && a.name.endsWith('.exe') && (a.name.includes('Setup') || a.name.includes('setup'))) ||
-         (rel.assets || []).find(a => a.name && a.name.endsWith('.exe')))
-      : (rel.assets || []).find(a => a.name && a.name.endsWith('.deb'));
-    const downloadUrl = targetAsset ? targetAsset.browser_download_url : (rel.html_url || '');
-
-    return {
+autoUpdater.on('update-available', (info) => {
+  log.info('Auto-updater: Update available:', info.version);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-available-detected', {
       updateAvailable: true,
-      currentVersion: APP_VERSION,
-      latestVersion,
-      releaseNotes: (rel.body && rel.body.trim()) ? rel.body.trim() : 'Performance optimization, hardware acceleration, and stability improvements.',
-      downloadUrl,
-      filename: targetAsset ? targetAsset.name : (isWin ? `Pulsar Music Player Setup ${latestVersion}.exe` : `pulsar-music-player_${latestVersion}_amd64.deb`),
-      size: targetAsset ? targetAsset.size : 0
+      currentVersion: app.getVersion(),
+      latestVersion: info.version,
+      releaseNotes: info.releaseNotes || 'A new update is available.',
+      info
+    });
+  }
+});
+
+autoUpdater.on('update-not-available', (info) => {
+  log.info('Auto-updater: App is up to date:', app.getVersion());
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  const percent = Math.round(progressObj.percent || 0);
+  log.info(`Auto-updater download progress: ${percent}%`);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-download-progress', {
+      percent: percent,
+      transferred: progressObj.transferred || 0,
+      total: progressObj.total || 0,
+      bytesPerSecond: progressObj.bytesPerSecond || 0
+    });
+  }
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  log.info('Auto-updater: Update downloaded and ready to install:', info.version);
+  downloadedUpdateInfo = info;
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-downloaded', {
+      readyToInstall: true,
+      currentVersion: app.getVersion(),
+      latestVersion: info.version,
+      releaseNotes: info.releaseNotes || 'A new version of Pulsar is ready. Restart to update.',
+      message: 'A new version of Pulsar is ready. Restart to update.'
+    });
+  }
+});
+
+autoUpdater.on('error', (err) => {
+  log.warn('Auto-updater error:', err ? err.message : 'Unknown updater error');
+});
+
+// IPC Handlers
+ipcMain.handle('check-for-updates', async () => {
+  if (!app.isPackaged) {
+    log.info('Auto-updater: App running in unpackaged/dev mode. Skipping check.');
+    return {
+      success: true,
+      updateAvailable: false,
+      currentVersion: app.getVersion(),
+      latestVersion: app.getVersion(),
+      releaseNotes: 'Running in development mode.'
+    };
+  }
+  try {
+    log.info('Manual update check initiated by user...');
+    const result = await autoUpdater.checkForUpdates();
+    const updateInfo = result?.updateInfo;
+    const isAvailable = updateInfo && updateInfo.version && updateInfo.version !== app.getVersion();
+    return {
+      success: true,
+      updateAvailable: isAvailable,
+      currentVersion: app.getVersion(),
+      latestVersion: updateInfo?.version || app.getVersion(),
+      releaseNotes: updateInfo?.releaseNotes || 'A new update is ready.',
+      isReadyToInstall: !!downloadedUpdateInfo
     };
   } catch (err) {
-    return { updateAvailable: false, error: err.message };
-  }
-}
-
-function resolveDownloadMeta(u) {
-  return new Promise((resolve, reject) => {
-    function get(cur, redirectCount = 0) {
-      if (redirectCount > 8) return reject(new Error('Too many redirects'));
-      const proto = cur.startsWith('https:') ? https : http;
-      proto.get(cur, {
-        headers: {
-          'User-Agent': 'PulsarAudio-Updater/' + APP_VERSION,
-          'Range': 'bytes=0-0'
-        }
-      }, (res) => {
-        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
-          res.resume();
-          return get(res.headers.location, redirectCount + 1);
-        }
-        if (res.statusCode === 206) {
-          const contentRange = res.headers['content-range'] || '';
-          const m = contentRange.match(/\/(\d+)/);
-          const total = m ? parseInt(m[1], 10) : parseInt(res.headers['content-length'] || '0', 10);
-          res.resume();
-          return resolve({ finalUrl: cur, total, acceptRanges: true });
-        }
-        if (res.statusCode === 200) {
-          const total = parseInt(res.headers['content-length'] || '0', 10);
-          const acceptRanges = (res.headers['accept-ranges'] || '').toLowerCase() === 'bytes';
-          res.resume();
-          return resolve({ finalUrl: cur, total, acceptRanges });
-        }
-        res.resume();
-        reject(new Error('HTTP ' + res.statusCode));
-      }).on('error', reject);
-    }
-    get(u);
-  });
-}
-
-function downloadFileWithProgress(url, destPath, onProgress) {
-  return new Promise(async (resolve, reject) => {
-    const partPath = `${destPath}.part`;
-    let attempt = 0;
-    const maxAttempts = 10;
-    const agent = new https.Agent({ keepAlive: true, maxFreeSockets: 5, timeout: 30000 });
-
-    async function attemptDownload() {
-      attempt++;
-      try {
-        let existingBytes = 0;
-        if (fs.existsSync(partPath)) {
-          existingBytes = fs.statSync(partPath).size;
-        }
-
-        const { finalUrl, total } = await resolveDownloadMeta(url);
-        if (total > 0 && existingBytes >= total) {
-          try { fs.renameSync(partPath, destPath); } catch (_) { fs.copyFileSync(partPath, destPath); }
-          if (onProgress) onProgress({ transferred: total, total, percent: 100 });
-          return resolve(destPath);
-        }
-
-        const proto = finalUrl.startsWith('https:') ? https : http;
-        const headers = {
-          'User-Agent': 'PulsarAudio-Updater/' + APP_VERSION
-        };
-        if (existingBytes > 0) {
-          headers['Range'] = `bytes=${existingBytes}-`;
-        }
-
-        const req = proto.get(finalUrl, {
-          headers,
-          agent: finalUrl.startsWith('https:') ? agent : undefined
-        }, (res) => {
-          if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
-            res.resume();
-            return downloadFileWithProgress(res.headers.location, destPath, onProgress).then(resolve).catch(reject);
-          }
-
-          let fileStream;
-          let transferred = existingBytes;
-          let expectedTotal = total;
-
-          if (res.statusCode === 206) {
-            fileStream = fs.createWriteStream(partPath, { flags: 'a', highWaterMark: 1024 * 1024 });
-            const cr = res.headers['content-range'];
-            if (cr) {
-              const m = cr.match(/\/(\d+)/);
-              if (m) expectedTotal = parseInt(m[1], 10);
-            }
-          } else if (res.statusCode === 200) {
-            fileStream = fs.createWriteStream(partPath, { flags: 'w', highWaterMark: 1024 * 1024 });
-            transferred = 0;
-            if (res.headers['content-length']) {
-              expectedTotal = parseInt(res.headers['content-length'], 10);
-            }
-          } else if (res.statusCode === 416) {
-            res.resume();
-            if (existingBytes > 0) {
-              try { fs.renameSync(partPath, destPath); } catch (_) { fs.copyFileSync(partPath, destPath); }
-              if (onProgress) onProgress({ transferred: existingBytes, total: existingBytes, percent: 100 });
-              return resolve(destPath);
-            }
-            return reject(new Error('HTTP 416 Range Not Satisfiable'));
-          } else {
-            res.resume();
-            throw new Error('HTTP ' + res.statusCode);
-          }
-
-          let lastReportTime = 0;
-          let lastPercent = -1;
-          let stallTimer = null;
-
-          const resetStallTimer = () => {
-            if (stallTimer) clearTimeout(stallTimer);
-            stallTimer = setTimeout(() => {
-              console.warn('[Updater] Download stream stalled for 12s, reconnecting...');
-              res.destroy(new Error('Stream stalled'));
-            }, 12000);
-          };
-          resetStallTimer();
-
-          res.on('data', chunk => {
-            resetStallTimer();
-            transferred += chunk.length;
-            fileStream.write(chunk);
-            const now = Date.now();
-            const percent = expectedTotal > 0 ? Math.min(100, Math.round((transferred / expectedTotal) * 100)) : 0;
-            if (percent === 100 || (now - lastReportTime >= 250 && percent !== lastPercent)) {
-              lastReportTime = now;
-              lastPercent = percent;
-              if (onProgress) onProgress({ transferred, total: expectedTotal, percent });
-            }
-          });
-
-          res.on('end', () => {
-            if (stallTimer) clearTimeout(stallTimer);
-            fileStream.end(() => {
-              try {
-                if (fs.existsSync(destPath)) fs.unlinkSync(destPath);
-                fs.renameSync(partPath, destPath);
-              } catch (_) {
-                try { fs.copyFileSync(partPath, destPath); fs.unlinkSync(partPath); } catch (__) {}
-              }
-              if (onProgress) onProgress({ transferred: expectedTotal || transferred, total: expectedTotal || transferred, percent: 100 });
-              resolve(destPath);
-            });
-          });
-
-          res.on('error', (err) => {
-            if (stallTimer) clearTimeout(stallTimer);
-            fileStream.destroy();
-            console.warn(`[Updater] Download chunk error on attempt ${attempt}:`, err.message);
-            retry();
-          });
-
-          fileStream.on('error', (err) => {
-            if (stallTimer) clearTimeout(stallTimer);
-            reject(err);
-          });
-        });
-
-        req.on('error', (err) => {
-          console.warn(`[Updater] Request network error on attempt ${attempt}:`, err.message);
-          retry();
-        });
-
-        req.setTimeout(25000, () => {
-          req.destroy(new Error('Request socket timeout'));
-        });
-
-      } catch (err) {
-        console.warn(`[Updater] Setup error on attempt ${attempt}:`, err.message);
-        retry();
-      }
-    }
-
-    function retry() {
-      if (attempt < maxAttempts) {
-        const delay = Math.min(5000, 1500 * attempt);
-        if (onProgress) onProgress({ percent: 0, status: `Connection interrupted. Resuming in ${Math.round(delay/1000)}s...` });
-        setTimeout(() => {
-          attemptDownload();
-        }, delay);
-      } else {
-        reject(new Error('Download failed after multiple retries. Check internet connection.'));
-      }
-    }
-
-    attemptDownload();
-  });
-}
-
-ipcMain.handle('check-for-updates', async () => {
-  return await checkOnlineUpdate();
-});
-
-ipcMain.handle('download-update', async (event, downloadUrl) => {
-  if (!downloadUrl) return { success: false, error: 'No download URL' };
-  const ext = process.platform === 'win32' ? '.exe' : '.deb';
-  const destPath = path.join(os.tmpdir(), `pulsar_latest${ext}`);
-  try {
-    await downloadFileWithProgress(downloadUrl, destPath, (progress) => {
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('update-download-progress', progress);
-      }
-    });
-    return { success: true, path: destPath };
-  } catch (err) {
-    return { success: false, error: err.message };
+    log.warn('Manual check-for-updates error:', err.message);
+    return {
+      success: false,
+      updateAvailable: false,
+      currentVersion: app.getVersion(),
+      error: err.message
+    };
   }
 });
 
-ipcMain.handle('install-update', async (event, customInstallerPath) => {
-  const isWin = process.platform === 'win32';
-  const ext = isWin ? '.exe' : '.deb';
-  const installerPath = customInstallerPath || path.join(os.tmpdir(), `pulsar_latest${ext}`);
-  if (!fs.existsSync(installerPath)) {
-    return { success: false, error: 'Installer package not found' };
-  }
-
-  if (isWin) {
-    try {
-      // Use shell.openPath for native Windows ShellExecuteEx execution
-      // This launches the installer as a standalone top-level Win32 process with UAC elevation support
-      const openResult = await shell.openPath(installerPath);
-      if (openResult) {
-        // Fallback to cmd.exe start if shell.openPath returned an error string
-        const child = spawn('cmd.exe', ['/c', 'start', '""', installerPath], {
-          detached: true,
-          stdio: 'ignore',
-          windowsHide: true
-        });
-        child.unref();
-      }
-
-      if (tray && !tray.isDestroyed()) {
-        try { tray.destroy(); } catch (_) {}
-        tray = null;
-      }
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.destroy();
-      }
-
-      setTimeout(() => {
-        app.exit(0);
-      }, 500);
-
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: err.message };
-    }
-  }
-
-  const currentPid = process.pid;
-  const scriptPath = path.join(os.tmpdir(), 'pulsar_apply_update.sh');
-  const scriptContent = `#!/usr/bin/env bash
-# Wait for old application PID to cleanly exit and release all LevelDB locks
-OLD_PID=${currentPid}
-if [ -n "$OLD_PID" ]; then
-  kill -TERM "$OLD_PID" 2>/dev/null || true
-  for i in {1..15}; do
-    if ! kill -0 "$OLD_PID" 2>/dev/null; then
-      break
-    fi
-    sleep 0.2
-  done
-  kill -9 "$OLD_PID" 2>/dev/null || true
-fi
-
-# Ensure no orphan pulsar instances linger
-pkill -f 'pulsar-music-player' 2>/dev/null || true
-sleep 0.5
-
-# Install new .deb package
-if command -v pkexec >/dev/null 2>&1; then
-  pkexec dpkg -i "${debPath}" || pkexec apt-get install --reinstall -y "${debPath}"
-else
-  sudo dpkg -i "${debPath}" || sudo apt-get install --reinstall -y "${debPath}"
-fi
-
-# Launch newly installed package cleanly
-if [ $? -eq 0 ]; then
-  sleep 0.5
-  if [ -x /usr/bin/pulsar-music-player ]; then
-    nohup /usr/bin/pulsar-music-player >/dev/null 2>&1 &
-  elif [ -x /opt/pulsar-music-player/pulsar-music-player ]; then
-    nohup /opt/pulsar-music-player/pulsar-music-player >/dev/null 2>&1 &
-  fi
-fi
-rm -f "${debPath}" "${scriptPath}" 2>/dev/null
-`;
-
+ipcMain.handle('download-update', async () => {
+  if (!app.isPackaged) return { success: true };
   try {
-    fs.writeFileSync(scriptPath, scriptContent, { mode: 0o755 });
-    const bashBin = fs.existsSync('/bin/bash') ? '/bin/bash' : (fs.existsSync('/usr/bin/bash') ? '/usr/bin/bash' : 'bash');
-    const child = spawn(bashBin, [scriptPath], {
-      detached: true,
-      stdio: 'ignore'
-    });
-    child.unref();
-
-    if (tray && !tray.isDestroyed()) {
-      try { tray.destroy(); } catch (_) {}
-      tray = null;
-    }
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.destroy();
-    }
-
-    setTimeout(() => {
-      app.exit(0);
-    }, 200);
-
+    await autoUpdater.downloadUpdate();
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
   }
+});
+
+ipcMain.handle('install-update', async () => {
+  log.info('User triggered Restart & Apply Update via autoUpdater.quitAndInstall(false, true)...');
+  if (tray && !tray.isDestroyed()) {
+    try { tray.destroy(); } catch (_) {}
+    tray = null;
+  }
+  setImmediate(() => {
+    // isSilent: false, isForceRunAfter: true (applies silently in background and relaunches app)
+    autoUpdater.quitAndInstall(false, true);
+  });
+  return { success: true };
 });

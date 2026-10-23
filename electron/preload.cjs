@@ -42,6 +42,9 @@ const api = {
   },
   onUpdateAvailableDetected: (callback) => {
     ipcRenderer.on('update-available-detected', (event, data) => callback(data));
+  },
+  onUpdateDownloaded: (callback) => {
+    ipcRenderer.on('update-downloaded', (event, data) => callback(data));
   }
 };
 
