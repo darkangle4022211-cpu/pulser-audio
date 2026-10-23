@@ -127,7 +127,7 @@ function uploadAssetStream(uploadUrlTemplate, filePath, assetName) {
       uploaded += chunk.length;
       const percent = Math.floor((uploaded / fileSize) * 100);
       if (percent >= lastPercent + 10 || percent === 100) {
-        process.stdout.write(`  Progress: ${percent}% (${(uploaded / (1024 * 1024)).toFixed(1)} / ${(fileSize / (1024 * 1024)).toFixed(1)} MB)\r`);
+        console.log(`  Progress: ${percent}% (${(uploaded / (1024 * 1024)).toFixed(1)} / ${(fileSize / (1024 * 1024)).toFixed(1)} MB)`);
         lastPercent = percent;
       }
     });
@@ -183,10 +183,6 @@ async function main() {
       path: path.join(projectRoot, 'dist-electron', `Pulsar-Music-Player-${VERSION}.AppImage`)
     },
     {
-      name: `Pulsar Music Player-${VERSION}.AppImage`,
-      path: path.join(projectRoot, 'dist-electron', `Pulsar Music Player-${VERSION}.AppImage`)
-    },
-    {
       name: 'latest-linux.yml',
       path: path.join(projectRoot, 'dist-electron', 'latest-linux.yml')
     },
@@ -195,16 +191,8 @@ async function main() {
       path: path.join(projectRoot, 'dist-electron', `Pulsar-Music-Player-Setup-${VERSION}.exe`)
     },
     {
-      name: `Pulsar Music Player Setup ${VERSION}.exe`,
-      path: path.join(projectRoot, 'dist-electron', `Pulsar Music Player Setup ${VERSION}.exe`)
-    },
-    {
       name: `Pulsar-Music-Player-Portable-${VERSION}.exe`,
       path: path.join(projectRoot, 'dist-electron', `Pulsar-Music-Player-Portable-${VERSION}.exe`)
-    },
-    {
-      name: `Pulsar Music Player Portable ${VERSION}.exe`,
-      path: path.join(projectRoot, 'dist-electron', `Pulsar Music Player Portable ${VERSION}.exe`)
     },
     {
       name: 'latest.yml',
