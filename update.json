@@ -1,8 +1,8 @@
 {
   "name": "pulser audio",
   "repo": "darkangle4022211-cpu/pulser-audio",
-  "version": "1.1.8",
-  "tag": "v1.1.8",
+  "version": "1.1.9",
+  "tag": "v1.1.9",
   "changelog": "• 100% Silent Background Auto-Updates: Removed intrusive update windows; updates run silently in the background while listening\\n• Top-Right Live Progress Indicator: Live update percentage pill that turns to 'Restart Now' when ready\\n• Seamless Close-to-Update: Update is automatically applied on app close; reopening runs the updated version without re-downloading\\n• Flawless Zero-Crash AppImage Relaunch: In-place differential updating with instant sandbox-compatible restart\\n• Zero Root / Sudo Password Prompts\\n\\nIf you are facing a problem, feel free to contact the developer:\\nEmail: hamza.zafar4022211@gmail.com",
   "support": {
     "message": "If you are facing a problem, feel free to contact the developer:",
@@ -10,21 +10,21 @@
   },
   "platforms": {
     "win-setup-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.8/Pulsar-Music-Player-Setup-1.1.8.exe",
-      "sha256": "8962c359206299285be879502e360e0f4a7ddaf8e4f91ae86b86de431912d86e",
-      "size": 170564850,
-      "filename": "Pulsar-Music-Player-Setup-1.1.8.exe"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.9/Pulsar-Music-Player-Setup-1.1.9.exe",
+      "sha256": "16a8c2e99ee47032f00306583c51a7f74ff6930abde5b7a5b2b12f12628a2d9c",
+      "size": 170563607,
+      "filename": "Pulsar-Music-Player-Setup-1.1.9.exe"
     },
     "win-portable-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.8/Pulsar-Music-Player-Portable-1.1.8.exe",
-      "sha256": "90324419424eb5ba49af3910d393eb51861ac19f5636e4b430560ce2257854a7",
-      "size": 170323065,
-      "filename": "Pulsar-Music-Player-Portable-1.1.8.exe"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.9/Pulsar-Music-Player-Portable-1.1.9.exe",
+      "sha256": "06dc882b37c37affff9beed81b5c2965598c8a6eccb52b249e899293c50481d5",
+      "size": 170321819,
+      "filename": "Pulsar-Music-Player-Portable-1.1.9.exe"
     },
     "linux-appimage-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.8/Pulsar-Music-Player.AppImage",
-      "sha256": "0c78bddef268950165c3b626c732c35e678402265ac5baefc473b2d589490c75",
-      "size": 227255586,
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.9/Pulsar-Music-Player.AppImage",
+      "sha256": "595181f883222388e6dad4c73cf47202d5c5199bf8187ffcebdf96cd90563e41",
+      "size": 227255587,
       "filename": "Pulsar-Music-Player.AppImage"
     }
   }
