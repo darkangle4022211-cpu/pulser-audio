@@ -96,6 +96,7 @@ export async function pushFilesToGitHub(commitMessage = 'feat: Full source code 
     'src/utils/lrcParser.js',
     'scripts/build_deb.sh',
     'scripts/build_appimage.sh',
+    'scripts/after_pack_linux.cjs',
     'scripts/build_win.sh',
     'scripts/publish_github_release.mjs',
     'scripts/push_code_to_github.mjs',

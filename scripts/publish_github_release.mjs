@@ -14,19 +14,19 @@ const REPO = "darkangle4022211-cpu/pulser-audio";
 const pkg = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
 const VERSION = pkg.version;
 const TAG = `v${VERSION}`;
-const RELEASE_NAME = `v${VERSION} - Library Song Click Alignment & Fast Differential Auto-Updates`;
+const RELEASE_NAME = `v${VERSION} - Zero-Crash AppImage Auto-Relaunch & Self-Healing Desktop Shortcuts`;
 const RELEASE_BODY = `### Pulsar Music Player v${VERSION} Production Release
 
 #### 🚀 What's New:
-- **Exact Song Click Alignment & Name Matching:** Clicking any song in All Tracks or custom playlists (both local files and downloaded YouTube Music songs) plays that exact song with 100% matched title, artist, and album art.
-- **Downloaded Offline Songs Retained in Queue:** Downloaded offline songs are fully recognized as local library tracks in shuffle and sequential playback.
-- **Fast Differential Windows Auto-Updates:** Published with .blockmap differential chunk metadata for rapid background updates without downloading large packages.
-- **Reliable Windows Restart & Clean Teardown:** Windows updater closes handles before silent relaunch with zero hang.
-- **Pure Portable Linux AppImage:** Seamless background updates with zero root \`pkexec\` password prompts.
+- **Flawless Zero-Crash AppImage Restart:** Built-in internal sandbox compatibility wrapper ensures AppImages relaunch instantly after updating on Ubuntu 24.04 and all modern Linux distributions without setuid sandbox aborts or core dumps.
+- **Canonical In-Place Auto-Updating:** AppImage updater performs clean in-place differential updates without breaking system file paths.
+- **Self-Healing Desktop Shortcuts & Dock Integration:** Startup and update handlers automatically synchronize \`~/.local/share/applications/pulsar-music-player.desktop\` and the smart launcher script so desktop and dock icons never display "App not found".
+- **Zero Sudo / Pkexec Prompts:** Completely user-space auto-updating requiring zero administrative passwords.
+- **Exact Song Click Alignment & Name Matching:** Library clicking and offline playlists perfectly synchronized.
 - **Ultra-Low CPU & GPU Footprint:** Low resource utilization with zero idle load (<0.5%).
 
 #### 📦 Downloads:
-- **Linux Portable AppImage (Auto-Updating):** \`Pulsar-Music-Player-${VERSION}.AppImage\`
+- **Linux Portable AppImage (Auto-Updating):** \`Pulsar-Music-Player.AppImage\`
 - **Windows Installer (Auto-Updating):** \`Pulsar-Music-Player-Setup-${VERSION}.exe\`
 - **Windows Standalone Portable:** \`Pulsar-Music-Player-Portable-${VERSION}.exe\`
 `;
@@ -177,6 +177,10 @@ async function main() {
       path: path.join(projectRoot, 'update.json')
     },
     {
+      name: 'Pulsar-Music-Player.AppImage',
+      path: path.join(projectRoot, 'dist-electron', 'Pulsar-Music-Player.AppImage')
+    },
+    {
       name: `Pulsar-Music-Player-${VERSION}.AppImage`,
       path: path.join(projectRoot, 'dist-electron', `Pulsar-Music-Player-${VERSION}.AppImage`)
     },
@@ -210,25 +214,42 @@ async function main() {
       continue;
     }
 
-    // Check if asset already uploaded
-    const existing = existingAssets.find(a => a.name === asset.name);
-    if (existing) {
-      console.log(`Asset ${asset.name} already exists (ID: ${existing.id}). Deleting old asset first...`);
-      await githubRequest(`https://api.github.com/repos/${REPO}/releases/assets/${existing.id}`, {
-        method: 'DELETE'
-      });
-      console.log(`Deleted old asset ${existing.id}`);
-    }
+    let uploadedAsset = null;
+    let attempts = 0;
+    const maxAttempts = 5;
 
-    try {
-      const uploadRes = await uploadAssetStream(release.upload_url, asset.path, asset.name);
-      results.push({
-        name: asset.name,
-        downloadUrl: uploadRes.browser_download_url,
-        size: uploadRes.size
-      });
-    } catch (err) {
-      console.error(`Failed to upload ${asset.name}:`, err.message);
+    while (attempts < maxAttempts && !uploadedAsset) {
+      attempts++;
+      try {
+        // Fetch fresh existing assets before each attempt
+        const checkReleaseRes = await githubRequest(`https://api.github.com/repos/${REPO}/releases/${release.id}`);
+        const currentAssets = checkReleaseRes.body.assets || [];
+        const existing = currentAssets.find(a => a.name === asset.name);
+        if (existing) {
+          console.log(`Asset ${asset.name} exists (ID: ${existing.id}). Deleting before upload...`);
+          await githubRequest(`https://api.github.com/repos/${REPO}/releases/assets/${existing.id}`, {
+            method: 'DELETE'
+          });
+          console.log(`Deleted existing asset ${existing.id}`);
+        }
+
+        const uploadRes = await uploadAssetStream(release.upload_url, asset.path, asset.name);
+        uploadedAsset = uploadRes;
+        results.push({
+          name: asset.name,
+          downloadUrl: uploadRes.browser_download_url,
+          size: uploadRes.size
+        });
+      } catch (err) {
+        console.error(`Attempt ${attempts}/${maxAttempts} failed for ${asset.name}:`, err.message);
+        if (attempts < maxAttempts) {
+          const waitSecs = attempts * 3;
+          console.log(`Waiting ${waitSecs}s before retrying ${asset.name}...`);
+          await new Promise(r => setTimeout(r, waitSecs * 1000));
+        } else {
+          console.error(`❌ Permanent failure uploading ${asset.name}`);
+        }
+      }
     }
   }
 

@@ -1,31 +1,31 @@
 {
   "name": "pulser audio",
   "repo": "darkangle4022211-cpu/pulser-audio",
-  "version": "1.1.6",
-  "tag": "v1.1.6",
-  "changelog": "\u2022 Exact Song Click & Name Alignment: Clicking any song in All Tracks or playlists (local & downloaded YouTube Music tracks) plays that exact matching song with 100% matched title, artist, and cover art\n\u2022 Downloaded Offline Tracks Retained in Shuffle: Downloaded offline songs are fully recognized as local library tracks in shuffle and sequential playback\n\u2022 Fast Differential Windows Auto-Updates: Includes .blockmap differential chunk metadata for rapid background updates without full package downloads\n\u2022 Reliable Windows Restart & Clean Teardown: Windows updater closes handles before silent relaunch with zero hang\n\u2022 Pure Portable Linux AppImage: Seamless background updates with zero root pkexec password prompts\n\nIf you're facing a problem, feel free to contact the developer:\nEmail: hamza.zafar4022211@gmail.com",
+  "version": "1.1.7",
+  "tag": "v1.1.7",
+  "changelog": "• Zero-Crash Linux AppImage Restart: Built-in sandbox wrapper prevents setuid sandbox aborts on Ubuntu 24.04 and modern Linux distros\\n• Canonical In-Place Auto-Updating: Linux AppImage updates in-place seamlessly without broken paths\\n• Self-Healing Desktop Shortcuts: Automatically updates ~/.local/share/applications/pulsar-music-player.desktop and launcher\\n• Fast Differential Windows Auto-Updates: Differential .blockmap metadata for instant updates\\n• Exact Song Click & Name Matching: 100% matched song playback and offline shuffle queue preservation\\n• Zero Root Password Prompts: Completely user-space updates\\n\\nIf you are facing a problem, feel free to contact the developer:\\nEmail: hamza.zafar4022211@gmail.com",
   "support": {
-    "message": "If you're facing a problem, feel free to contact the developer:",
+    "message": "If you are facing a problem, feel free to contact the developer:",
     "email": "hamza.zafar4022211@gmail.com"
   },
   "platforms": {
     "win-setup-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.6/Pulsar-Music-Player-Setup-1.1.6.exe",
-      "sha256": "e7ad7f23798ed31c03340da797ea097899f56086a83ce09792679de21440104d",
-      "size": 170565973,
-      "filename": "Pulsar-Music-Player-Setup-1.1.6.exe"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.7/Pulsar-Music-Player-Setup-1.1.7.exe",
+      "sha256": "5be817a91da6bcd46c027af7aa1ec4f8f179b43776f4932620dc2f0d448d68cd",
+      "size": 170567196,
+      "filename": "Pulsar-Music-Player-Setup-1.1.7.exe"
     },
     "win-portable-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.6/Pulsar-Music-Player-Portable-1.1.6.exe",
-      "sha256": "03ecc6b0d310608e5a33bfef059efcddeff256604f9f287878ade14886e89e75",
-      "size": 170324191,
-      "filename": "Pulsar-Music-Player-Portable-1.1.6.exe"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.7/Pulsar-Music-Player-Portable-1.1.7.exe",
+      "sha256": "ec43e7ee772589b1ac34aa9840032225ec6fc5e0414ea5ea9c7b8aa18526ba79",
+      "size": 170325411,
+      "filename": "Pulsar-Music-Player-Portable-1.1.7.exe"
     },
     "linux-appimage-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.6/Pulsar-Music-Player-1.1.6.AppImage",
-      "sha256": "8aa5bbfebd6ca7a41afb669586c413356c4d4163c8d010c7d71aac64e4b596af",
-      "size": 227255502,
-      "filename": "Pulsar-Music-Player-1.1.6.AppImage"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.7/Pulsar-Music-Player.AppImage",
+      "sha256": "c0566ae1cde31ec3463217be97d77cfac6fe9165ec3b5755c0fdf858e5a54a1f",
+      "size": 227259337,
+      "filename": "Pulsar-Music-Player.AppImage"
     }
   }
 }

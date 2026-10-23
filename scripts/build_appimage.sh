@@ -4,7 +4,7 @@ set -e
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$DIR"
 
-VERSION="${1:-$(node -p "require('./package.json').version" 2>/dev/null || echo "1.1.5")}"
+VERSION="${1:-$(node -p "require('./package.json').version" 2>/dev/null || echo "1.1.6")}"
 
 echo "=== Building Pulsar Music Player Linux AppImage Package (${VERSION}) ==="
 
@@ -19,22 +19,26 @@ npx electron-builder --linux AppImage
 
 # 3. Copy AppImage to releases and home folder
 mkdir -p "$DIR/releases"
-APPIMAGE_SRC=$(ls -t "$DIR"/dist-electron/*.AppImage 2>/dev/null | head -n 1)
+APPIMAGE_SRC="$DIR/dist-electron/Pulsar-Music-Player.AppImage"
+if [ ! -f "$APPIMAGE_SRC" ]; then
+  APPIMAGE_SRC=$(ls -t "$DIR"/dist-electron/*.AppImage 2>/dev/null | head -n 1)
+fi
+
 if [ -n "$APPIMAGE_SRC" ] && [ -f "$APPIMAGE_SRC" ]; then
-  APPIMAGE_NAME=$(basename "$APPIMAGE_SRC")
-  cp -f "$APPIMAGE_SRC" "$DIR/releases/${APPIMAGE_NAME}"
-  cp -f "$APPIMAGE_SRC" "$HOME/${APPIMAGE_NAME}"
-  chmod +x "$HOME/${APPIMAGE_NAME}"
-  echo "✅ Copied AppImage to releases and home directory: $HOME/${APPIMAGE_NAME}"
+  # Ensure unversioned canonical AppImage in releases and $HOME
+  cp -f "$APPIMAGE_SRC" "$DIR/releases/Pulsar-Music-Player.AppImage"
+  cp -f "$APPIMAGE_SRC" "$HOME/Pulsar-Music-Player.AppImage"
+  chmod +x "$HOME/Pulsar-Music-Player.AppImage"
+
+  # Also provide versioned copy in releases for users who prefer versioned filenames
+  cp -f "$APPIMAGE_SRC" "$DIR/dist-electron/Pulsar-Music-Player-${VERSION}.AppImage"
+  cp -f "$APPIMAGE_SRC" "$DIR/releases/Pulsar-Music-Player-${VERSION}.AppImage"
+  echo "✅ Copied AppImage to releases and home directory: $HOME/Pulsar-Music-Player.AppImage"
 fi
 
 # Copy latest-linux.yml
 if [ -f "$DIR/dist-electron/latest-linux.yml" ]; then
   cp -f "$DIR/dist-electron/latest-linux.yml" "$DIR/releases/latest-linux.yml"
-fi
-
-if [ -f "$DIR/dist-electron/Pulsar Music Player-${VERSION}.AppImage" ]; then
-  ln -sf "Pulsar Music Player-${VERSION}.AppImage" "$DIR/dist-electron/Pulsar-Music-Player-${VERSION}.AppImage"
 fi
 
 echo "=== SUCCESS: Linux AppImage built ==="

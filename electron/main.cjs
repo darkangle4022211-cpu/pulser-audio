@@ -1892,6 +1892,7 @@ app.whenReady().then(() => {
   createTray();
   registerMediaKeys();
   initStreamResolver();
+  setupLinuxDesktopIntegration();
 
   // Quiet background update check 3.5 seconds after launch
   setTimeout(async () => {
@@ -1937,6 +1938,106 @@ app.on('window-all-closed', () => {
 });
 
 // ============================================================================
+// Linux Desktop Integration & Self-Healing Launcher
+// ============================================================================
+function setupLinuxDesktopIntegration() {
+  if (process.platform !== 'linux') return;
+  try {
+    const homeDir = process.env.HOME || os.homedir();
+    const appsDir = path.join(homeDir, '.local', 'share', 'applications');
+    const iconsDir = path.join(homeDir, '.local', 'share', 'icons');
+    const binDir = path.join(homeDir, '.local', 'bin');
+    const desktopPath = path.join(appsDir, 'pulsar-music-player.desktop');
+    const iconPath = path.join(iconsDir, 'pulsar-music-player.png');
+    const launcherPath = path.join(binDir, 'pulsar-music-player');
+
+    fs.mkdirSync(appsDir, { recursive: true });
+    fs.mkdirSync(iconsDir, { recursive: true });
+    fs.mkdirSync(binDir, { recursive: true });
+
+    // 1. Ensure icon is installed
+    const candidateIconPaths = [
+      path.join(process.resourcesPath || '', 'build', 'icons', 'icon.png'),
+      path.join(__dirname, '..', 'build', 'icons', 'icon.png'),
+      path.join(process.resourcesPath || '', 'icon.png')
+    ];
+    for (const src of candidateIconPaths) {
+      if (fs.existsSync(src)) {
+        try {
+          fs.copyFileSync(src, iconPath);
+          break;
+        } catch (_) {}
+      }
+    }
+
+    // 2. Identify currently active AppImage path if running from an AppImage
+    const currentAppImage = process.env.APPIMAGE;
+
+    // 3. Write or update the smart launcher in ~/.local/bin/pulsar-music-player
+    try {
+      const stats = fs.lstatSync(launcherPath);
+      if (stats.isSymbolicLink()) {
+        fs.unlinkSync(launcherPath);
+      }
+    } catch (_) {}
+
+    const launcherScript = `#!/usr/bin/env bash
+# Smart launcher for Pulsar Music Player
+
+# 1. Prefer current AppImage if still valid
+${currentAppImage ? `if [ -f "${currentAppImage}" ] && [ -x "${currentAppImage}" ]; then
+  exec "${currentAppImage}" --no-sandbox "$@"
+fi
+` : ''}
+# 2. Prefer canonical unversioned AppImage
+for dir in "$HOME" "$HOME/Applications" "$HOME/bin" "$HOME/Downloads"; do
+  if [ -f "$dir/Pulsar-Music-Player.AppImage" ] && [ -x "$dir/Pulsar-Music-Player.AppImage" ]; then
+    exec "$dir/Pulsar-Music-Player.AppImage" --no-sandbox "$@"
+  fi
+  if [ -f "$dir/Pulsar Music Player.AppImage" ] && [ -x "$dir/Pulsar Music Player.AppImage" ]; then
+    exec "$dir/Pulsar Music Player.AppImage" --no-sandbox "$@"
+  fi
+done
+
+# 3. Fall back to newest versioned AppImage (excluding empty/broken files)
+CANDIDATE=$(find "$HOME" "$HOME/Applications" "$HOME/Downloads" -maxdepth 1 -name "Pulsar*.AppImage" -type f ! -size 0 2>/dev/null | xargs -r ls -t 2>/dev/null | head -n 1)
+if [ -n "$CANDIDATE" ] && [ -x "$CANDIDATE" ]; then
+  exec "$CANDIDATE" --no-sandbox "$@"
+fi
+
+# 4. Fall back to unpacked binary if present
+if [ -x "/opt/Pulsar Music Player/pulsar-music-player" ]; then
+  exec "/opt/Pulsar Music Player/pulsar-music-player" --no-sandbox "$@"
+fi
+
+echo "Error: Pulsar Music Player AppImage not found." >&2
+exit 1
+`;
+    fs.writeFileSync(launcherPath, launcherScript, { mode: 0o755 });
+
+    // 4. Update the desktop entry pointing to ~/.local/bin/pulsar-music-player
+    const desktopContent = `[Desktop Entry]
+Version=1.0
+Name=Pulsar Music Player
+GenericName=Music Player
+Comment=High-Fidelity Offline & Online Music Player
+Exec=${launcherPath} %U
+Terminal=false
+Type=Application
+Icon=${iconPath}
+Categories=AudioVideo;Audio;Player;
+Keywords=mp3;music;player;audio;equalizer;offline;
+StartupWMClass=pulsar-music-player
+MimeType=audio/mpeg;audio/mp3;audio/flac;audio/x-wav;audio/ogg;audio/aac;audio/x-m4a;
+`;
+    fs.writeFileSync(desktopPath, desktopContent, { mode: 0o644 });
+    log.info('Linux desktop integration verified/updated at:', desktopPath);
+  } catch (err) {
+    log.warn('Could not update Linux desktop integration:', err.message);
+  }
+}
+
+// ============================================================================
 // Professional Background Auto-Update Engine (Universal electron-updater)
 // ============================================================================
 const { autoUpdater } = require('electron-updater');
@@ -1958,6 +2059,16 @@ let downloadedUpdateInfo = null;
 // Standard event listeners
 autoUpdater.on('checking-for-update', () => {
   log.info('Auto-updater: Checking for update...');
+});
+
+autoUpdater.on('appimage-filename-updated', (newPath) => {
+  log.info('Auto-updater: AppImage filename updated to:', newPath);
+  try {
+    process.env.APPIMAGE = newPath;
+    setupLinuxDesktopIntegration();
+  } catch (e) {
+    log.warn('Error handling appimage-filename-updated:', e.message);
+  }
 });
 
 autoUpdater.on('update-available', (info) => {
