@@ -1,30 +1,30 @@
 {
   "name": "pulser audio",
   "repo": "darkangle4022211-cpu/pulser-audio",
-  "version": "1.1.7",
-  "tag": "v1.1.7",
-  "changelog": "• Zero-Crash Linux AppImage Restart: Built-in sandbox wrapper prevents setuid sandbox aborts on Ubuntu 24.04 and modern Linux distros\\n• Canonical In-Place Auto-Updating: Linux AppImage updates in-place seamlessly without broken paths\\n• Self-Healing Desktop Shortcuts: Automatically updates ~/.local/share/applications/pulsar-music-player.desktop and launcher\\n• Fast Differential Windows Auto-Updates: Differential .blockmap metadata for instant updates\\n• Exact Song Click & Name Matching: 100% matched song playback and offline shuffle queue preservation\\n• Zero Root Password Prompts: Completely user-space updates\\n\\nIf you are facing a problem, feel free to contact the developer:\\nEmail: hamza.zafar4022211@gmail.com",
+  "version": "1.1.8",
+  "tag": "v1.1.8",
+  "changelog": "• 100% Silent Background Auto-Updates: Removed intrusive update windows; updates run silently in the background while listening\\n• Top-Right Live Progress Indicator: Live update percentage pill that turns to 'Restart Now' when ready\\n• Seamless Close-to-Update: Update is automatically applied on app close; reopening runs the updated version without re-downloading\\n• Flawless Zero-Crash AppImage Relaunch: In-place differential updating with instant sandbox-compatible restart\\n• Zero Root / Sudo Password Prompts\\n\\nIf you are facing a problem, feel free to contact the developer:\\nEmail: hamza.zafar4022211@gmail.com",
   "support": {
     "message": "If you are facing a problem, feel free to contact the developer:",
     "email": "hamza.zafar4022211@gmail.com"
   },
   "platforms": {
     "win-setup-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.7/Pulsar-Music-Player-Setup-1.1.7.exe",
-      "sha256": "5be817a91da6bcd46c027af7aa1ec4f8f179b43776f4932620dc2f0d448d68cd",
-      "size": 170567196,
-      "filename": "Pulsar-Music-Player-Setup-1.1.7.exe"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.8/Pulsar-Music-Player-Setup-1.1.8.exe",
+      "sha256": "8962c359206299285be879502e360e0f4a7ddaf8e4f91ae86b86de431912d86e",
+      "size": 170564850,
+      "filename": "Pulsar-Music-Player-Setup-1.1.8.exe"
     },
     "win-portable-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.7/Pulsar-Music-Player-Portable-1.1.7.exe",
-      "sha256": "ec43e7ee772589b1ac34aa9840032225ec6fc5e0414ea5ea9c7b8aa18526ba79",
-      "size": 170325411,
-      "filename": "Pulsar-Music-Player-Portable-1.1.7.exe"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.8/Pulsar-Music-Player-Portable-1.1.8.exe",
+      "sha256": "90324419424eb5ba49af3910d393eb51861ac19f5636e4b430560ce2257854a7",
+      "size": 170323065,
+      "filename": "Pulsar-Music-Player-Portable-1.1.8.exe"
     },
     "linux-appimage-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.7/Pulsar-Music-Player.AppImage",
-      "sha256": "c0566ae1cde31ec3463217be97d77cfac6fe9165ec3b5755c0fdf858e5a54a1f",
-      "size": 227259337,
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.8/Pulsar-Music-Player.AppImage",
+      "sha256": "0c78bddef268950165c3b626c732c35e678402265ac5baefc473b2d589490c75",
+      "size": 227255586,
       "filename": "Pulsar-Music-Player.AppImage"
     }
   }

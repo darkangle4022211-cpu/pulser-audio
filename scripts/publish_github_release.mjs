@@ -14,16 +14,15 @@ const REPO = "darkangle4022211-cpu/pulser-audio";
 const pkg = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
 const VERSION = pkg.version;
 const TAG = `v${VERSION}`;
-const RELEASE_NAME = `v${VERSION} - Zero-Crash AppImage Auto-Relaunch & Self-Healing Desktop Shortcuts`;
+const RELEASE_NAME = `v${VERSION} - Silent Background Auto-Updates & Seamless Close-to-Update`;
 const RELEASE_BODY = `### Pulsar Music Player v${VERSION} Production Release
 
 #### 🚀 What's New:
-- **Flawless Zero-Crash AppImage Restart:** Built-in internal sandbox compatibility wrapper ensures AppImages relaunch instantly after updating on Ubuntu 24.04 and all modern Linux distributions without setuid sandbox aborts or core dumps.
-- **Canonical In-Place Auto-Updating:** AppImage updater performs clean in-place differential updates without breaking system file paths.
-- **Self-Healing Desktop Shortcuts & Dock Integration:** Startup and update handlers automatically synchronize \`~/.local/share/applications/pulsar-music-player.desktop\` and the smart launcher script so desktop and dock icons never display "App not found".
-- **Zero Sudo / Pkexec Prompts:** Completely user-space auto-updating requiring zero administrative passwords.
-- **Exact Song Click Alignment & Name Matching:** Library clicking and offline playlists perfectly synchronized.
-- **Ultra-Low CPU & GPU Footprint:** Low resource utilization with zero idle load (<0.5%).
+- **100% Silent Background Auto-Updates:** Removed all intrusive "Downloading the update" modal windows. The player now updates silently in the background while you enjoy uninterrupted music.
+- **Top-Right Live Progress Indicator:** A sleek, non-intrusive status pill in the top header displays background progress percentage and transitions to an emerald "Restart Now" pill when ready.
+- **Seamless Close-to-Update:** Once the update finishes in the background, you do not even need to click restart. Whenever you naturally close and reopen Pulsar, the updated version is automatically running—no re-downloading required!
+- **Zero Sudo / Pkexec Prompts:** Completely user-space auto-updating requiring zero administrative passwords on Linux (AppImage) and Windows (NSIS).
+- **Exact Song Alignment & Zero Idle Footprint:** Whisper-quiet performance with <0.5% CPU/GPU idle usage.
 
 #### 📦 Downloads:
 - **Linux Portable AppImage (Auto-Updating):** \`Pulsar-Music-Player.AppImage\`

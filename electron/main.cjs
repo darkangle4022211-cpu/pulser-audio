@@ -1,3 +1,8 @@
+// If launched by electron-builder post-install verification on quit, exit immediately without spawning UI
+if (process.env.APPIMAGE_EXIT_AFTER_INSTALL === 'true') {
+  process.exit(0);
+}
+
 const { app, BrowserWindow, ipcMain, Tray, Menu, Notification, globalShortcut, nativeImage, dialog, shell, session, protocol, net } = require('electron');
 const { execFile, spawn } = require('child_process');
 const { Readable } = require('stream');
@@ -1926,6 +1931,30 @@ app.on('before-quit', () => {
     tray = null;
   }
   globalShortcut.unregisterAll();
+
+  // If an update was downloaded and not yet applied, install it silently on quit
+  if (downloadedUpdateInfo && !autoUpdater.quitAndInstallCalled) {
+    try {
+      log.info('Ensuring downloaded update is installed on quit before process exits...');
+      autoUpdater.install(true, false);
+      if (process.platform === 'linux') {
+        setupLinuxDesktopIntegration();
+        const curAppImage = process.env.APPIMAGE;
+        if (curAppImage) {
+          const unversioned = path.join(path.dirname(curAppImage), 'Pulsar-Music-Player.AppImage');
+          if (curAppImage !== unversioned && fs.existsSync(curAppImage)) {
+            try {
+              if (fs.existsSync(unversioned)) fs.unlinkSync(unversioned);
+              fs.copyFileSync(curAppImage, unversioned);
+              fs.chmodSync(unversioned, 0o755);
+            } catch (_) {}
+          }
+        }
+      }
+    } catch (e) {
+      log.warn('Notice installing update on quit in before-quit:', e.message);
+    }
+  }
 });
 
 app.on('window-all-closed', () => {
@@ -2066,6 +2095,16 @@ autoUpdater.on('appimage-filename-updated', (newPath) => {
   try {
     process.env.APPIMAGE = newPath;
     setupLinuxDesktopIntegration();
+    const unversioned = path.join(path.dirname(newPath), 'Pulsar-Music-Player.AppImage');
+    if (newPath !== unversioned && fs.existsSync(newPath)) {
+      try {
+        if (fs.existsSync(unversioned)) fs.unlinkSync(unversioned);
+        fs.copyFileSync(newPath, unversioned);
+        fs.chmodSync(unversioned, 0o755);
+      } catch (e) {
+        log.warn('Could not sync unversioned AppImage:', e.message);
+      }
+    }
   } catch (e) {
     log.warn('Error handling appimage-filename-updated:', e.message);
   }
@@ -2167,6 +2206,10 @@ ipcMain.handle('download-update', async () => {
 
 ipcMain.handle('install-update', async () => {
   log.info('User triggered Restart & Apply Update via autoUpdater.quitAndInstall(true, true)...');
+  if (streamResolverProc) {
+    try { streamResolverProc.kill('SIGTERM'); } catch (_) {}
+    streamResolverProc = null;
+  }
   if (tray && !tray.isDestroyed()) {
     try { tray.destroy(); } catch (_) {}
     tray = null;

@@ -2125,6 +2125,32 @@ canvas#visualizerCanvas {
   background: #a78bfa;
   display: inline-block;
   opacity: 0.9;
+  animation: updatePulse 2s infinite ease-in-out;
+}
+
+@keyframes updatePulse {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  50% { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.6; }
+}
+
+.btn-update-available.ready-to-install {
+  background: rgba(16, 185, 129, 0.25) !important;
+  border-color: rgba(16, 185, 129, 0.65) !important;
+  color: #ecfdf5 !important;
+}
+
+.btn-update-available.ready-to-install:hover {
+  background: rgba(16, 185, 129, 0.42) !important;
+  border-color: rgba(16, 185, 129, 0.95) !important;
+}
+
+.btn-update-available.ready-to-install .update-icon {
+  stroke: #34d399 !important;
+}
+
+.btn-update-available.ready-to-install .update-pulse-ring {
+  background: #10b981 !important;
 }
 
 /* Update Modal Dialog Customizations */

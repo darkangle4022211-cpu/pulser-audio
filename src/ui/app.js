@@ -323,24 +323,10 @@ class App {
     this.onlineCtxInfo = document.getElementById('onlineCtxInfo');
     this.onlineCtxCopy = document.getElementById('onlineCtxCopy');
 
-    // Online Auto-Updater Elements
+    // Online Auto-Updater Elements (Silent Background Updater)
     this.btnUpdateAvailable = document.getElementById('btnUpdateAvailable');
     this.updateBtnText = document.getElementById('updateBtnText');
     this.btnCheckUpdatesManual = document.getElementById('btnCheckUpdatesManual');
-    this.updateModal = document.getElementById('updateModal');
-    this.btnCloseUpdateModal = document.getElementById('btnCloseUpdateModal');
-    this.btnUpdateDismiss = document.getElementById('btnUpdateDismiss');
-    this.btnUpdateExecute = document.getElementById('btnUpdateExecute');
-    this.btnUpdateExecuteText = document.getElementById('btnUpdateExecuteText');
-    this.updateBadgeCurrent = document.getElementById('updateBadgeCurrent');
-    this.updateBadgeLatest = document.getElementById('updateBadgeLatest');
-    this.updateModalVersionSub = document.getElementById('updateModalVersionSub');
-    this.updateChangelogContent = document.getElementById('updateChangelogContent');
-    this.updateProgressBlock = document.getElementById('updateProgressBlock');
-    this.updateBgBanner = document.getElementById('updateBgBanner');
-    this.updateProgressBarFill = document.getElementById('updateProgressBarFill');
-    this.updateProgressPercent = document.getElementById('updateProgressPercent');
-    this.updateProgressLabel = document.getElementById('updateProgressLabel');
 
     // YouTube Music Now Playing Stage (Screenshot 5 Reference)
     this.nowPlayingStage = document.getElementById('nowPlayingStage');
@@ -4660,16 +4646,22 @@ class App {
   }
 
   // ============================================================================
-  // Online Auto-Updater Engine & UI Handlers
+  // Online Auto-Updater Engine (Silent Background Auto-Updater)
   // ============================================================================
   _initUpdater() {
+    let lastReportedPercent = -1;
+
     if (this.btnUpdateAvailable) {
       this.btnUpdateAvailable.style.display = 'none';
       this.btnUpdateAvailable.addEventListener('click', () => {
         if (this.updaterState.isReadyToInstall) {
           this._applyDownloadedUpdate();
+        } else if (this.updaterState.isDownloading) {
+          const pct = lastReportedPercent >= 0 ? ` (${lastReportedPercent}%)` : '';
+          this._showToast(`Pulsar is updating automatically in the background${pct}. You can continue listening to music.`, 'info');
         } else if (this.updaterState.availableUpdate && this.updaterState.availableUpdate.updateAvailable) {
-          this._openUpdateModal();
+          this._showToast('Downloading update automatically in the background. You can continue listening.', 'info');
+          this._startUpdateDownload();
         }
       });
     }
@@ -4680,44 +4672,17 @@ class App {
       });
     }
 
-    if (this.btnCloseUpdateModal) {
-      this.btnCloseUpdateModal.addEventListener('click', () => this._closeUpdateModal());
-    }
-
-    if (this.btnUpdateDismiss) {
-      this.btnUpdateDismiss.addEventListener('click', () => this._closeUpdateModal());
-    }
-
-    if (this.btnUpdateExecute) {
-      this.btnUpdateExecute.addEventListener('click', () => {
-        if (this.updaterState.isReadyToInstall) {
-          this._applyDownloadedUpdate();
-        } else {
-          this._startUpdateDownloadAndInstall();
-        }
-      });
-    }
-
-    let lastReportedPercent = -1;
     const nativeApi = window.electronAPI;
     if (nativeApi && nativeApi.onUpdateDownloadProgress) {
       nativeApi.onUpdateDownloadProgress((prog) => {
+        this.updaterState.isDownloading = true;
         if (prog.percent === lastReportedPercent) return;
         lastReportedPercent = prog.percent;
         requestAnimationFrame(() => {
-          const isModalOpen = this.updateModal && (this.updateModal.classList.contains('active') || this.updateModal.style.display !== 'none');
-          if (isModalOpen) {
-            if (this.updateProgressBarFill) {
-              this.updateProgressBarFill.style.width = `${prog.percent}%`;
-            }
-            if (this.updateProgressPercent) {
-              this.updateProgressPercent.textContent = `${prog.percent}%`;
-            }
-            if (this.updateProgressLabel) {
-              const mb = (prog.transferred / (1024 * 1024)).toFixed(1);
-              const totalMb = (prog.total / (1024 * 1024)).toFixed(1);
-              this.updateProgressLabel.textContent = `Downloading (${mb} / ${totalMb} MB)...`;
-            }
+          if (this.btnUpdateAvailable) {
+            this.btnUpdateAvailable.classList.add('is-visible');
+            this.btnUpdateAvailable.style.display = 'inline-flex';
+            this.btnUpdateAvailable.title = `Downloading update in background (${prog.percent}%)... Click to view status.`;
           }
           if (this.updateBtnText) {
             this.updateBtnText.textContent = `Updating (${prog.percent}%)`;
@@ -4745,39 +4710,18 @@ class App {
     setInterval(() => this._checkUpdateStatus(false), 3600000);
   }
 
-  _openUpdateModal() {
-    if (!this.updateModal) return;
-    this.updateModal.style.display = 'flex';
-    this.updateModal.classList.add('active');
-  }
-
-  _closeUpdateModal() {
-    if (!this.updateModal) return;
-    this.updateModal.style.display = 'none';
-    this.updateModal.classList.remove('active');
-  }
-
   _handleUpdateAvailable(res, isManual = false) {
     this.updaterState.availableUpdate = res;
     if (this.btnUpdateAvailable) {
       this.btnUpdateAvailable.classList.add('is-visible');
       this.btnUpdateAvailable.style.display = 'inline-flex';
-      this.btnUpdateAvailable.title = `New update v${String(res.latestVersion).replace(/^v/, '')} available! Click to update.`;
-    }
-    if (this.updateBadgeLatest) {
-      this.updateBadgeLatest.textContent = 'v' + String(res.latestVersion).replace(/^v/, '');
-    }
-    if (this.updateBadgeCurrent) {
-      this.updateBadgeCurrent.textContent = 'v' + String(res.currentVersion || '1.0.0').replace(/^v/, '');
-    }
-    if (this.updateModalVersionSub) {
-      this.updateModalVersionSub.textContent = `Pulsar Audio v${String(res.latestVersion).replace(/^v/, '')} is available`;
-    }
-    if (this.updateChangelogContent) {
-      this.updateChangelogContent.textContent = res.releaseNotes || 'Performance optimization, hardware acceleration, and stability improvements.';
+      this.btnUpdateAvailable.title = `Downloading update v${String(res.latestVersion).replace(/^v/, '')} in background...`;
+      if (this.updateBtnText) {
+        this.updateBtnText.textContent = 'Updating...';
+      }
     }
     if (isManual) {
-      this._openUpdateModal();
+      this._showToast(`Found Pulsar v${String(res.latestVersion).replace(/^v/, '')}. Downloading in background...`, 'info');
     }
   }
 
@@ -4787,26 +4731,12 @@ class App {
     if (this.btnUpdateAvailable) {
       this.btnUpdateAvailable.classList.add('is-visible', 'ready-to-install');
       this.btnUpdateAvailable.style.display = 'inline-flex';
-      this.btnUpdateAvailable.title = 'A new version of Pulsar is ready. Click to restart now.';
+      this.btnUpdateAvailable.title = 'A new version of Pulsar is ready. Click to restart now, or it will automatically apply when you close the app.';
       if (this.updateBtnText) {
         this.updateBtnText.textContent = 'Restart Now';
       }
     }
-    if (this.updateProgressBlock) this.updateProgressBlock.style.display = 'block';
-    if (this.updateProgressBarFill) this.updateProgressBarFill.style.width = '100%';
-    if (this.updateProgressPercent) this.updateProgressPercent.textContent = '100%';
-    if (this.updateProgressLabel) this.updateProgressLabel.textContent = 'A new version of Pulsar is ready. Restart to update.';
-    if (this.btnUpdateExecute) {
-      this.btnUpdateExecute.disabled = false;
-      if (this.btnUpdateExecuteText) this.btnUpdateExecuteText.textContent = 'Restart Now';
-    }
-    if (this.btnUpdateDismiss) this.btnUpdateDismiss.textContent = 'Later (On App Quit)';
-
-    // Show non-intrusive notification toast
-    const isModalOpen = this.updateModal && (this.updateModal.classList.contains('active') || this.updateModal.style.display !== 'none');
-    if (!isModalOpen) {
-      this._showToast('🎉 A new version of Pulsar is ready. Restart to update.', 'success');
-    }
+    this._showToast('🎉 Update ready! Click "Restart Now" or simply close the app anytime to apply.', 'success');
   }
 
   async _checkUpdateStatus(isManual = false) {
@@ -4844,7 +4774,7 @@ class App {
     }
   }
 
-  async _startUpdateDownloadAndInstall() {
+  async _startUpdateDownload() {
     if (this.updaterState.isReadyToInstall) {
       this._applyDownloadedUpdate();
       return;
@@ -4852,41 +4782,35 @@ class App {
     if (this.updaterState.isDownloading) return;
     this.updaterState.isDownloading = true;
 
-    if (this.btnUpdateExecute) this.btnUpdateExecute.disabled = true;
-    if (this.btnUpdateExecuteText) this.btnUpdateExecuteText.textContent = 'Downloading in Background...';
-    if (this.updateProgressBlock) this.updateProgressBlock.style.display = 'block';
-    if (this.updateBgBanner) this.updateBgBanner.style.display = 'flex';
-    if (this.btnUpdateDismiss) this.btnUpdateDismiss.textContent = 'Listen to Music (Background Update)';
-    if (this.btnUpdateAvailable) {
-      this.btnUpdateAvailable.title = 'Pulsar is updating in the background. You can safely enjoy your music.';
-    }
-
     try {
       const nativeApi = window.electronAPI;
-      const res = await nativeApi.downloadUpdate();
-      if (!res || !res.success) {
-        throw new Error(res?.error || 'Download failed');
+      if (nativeApi && nativeApi.downloadUpdate) {
+        const res = await nativeApi.downloadUpdate();
+        if (!res || !res.success) {
+          throw new Error(res?.error || 'Download failed');
+        }
       }
     } catch (err) {
-      console.error('Update error:', err);
+      console.warn('Update download error:', err);
       this.updaterState.isDownloading = false;
-      if (this.btnUpdateExecute) this.btnUpdateExecute.disabled = false;
-      if (this.btnUpdateExecuteText) this.btnUpdateExecuteText.textContent = 'Retry Update';
-      if (this.updateProgressLabel) this.updateProgressLabel.textContent = 'Update check notice: ' + (err.message || 'Error');
     }
   }
 
   async _applyDownloadedUpdate() {
     this._showToast('Restarting Pulsar to apply update...', 'info');
-    if (this.btnUpdateExecute) this.btnUpdateExecute.disabled = true;
-    if (this.btnUpdateExecuteText) this.btnUpdateExecuteText.textContent = 'Restarting...';
-
+    if (this.updateBtnText) {
+      this.updateBtnText.textContent = 'Restarting...';
+    }
     try {
       const nativeApi = window.electronAPI;
-      await nativeApi.installUpdate();
+      if (nativeApi && nativeApi.installUpdate) {
+        await nativeApi.installUpdate();
+      }
     } catch (err) {
       this._showToast('Update restart failed: ' + (err.message || 'Error'), 'error');
-      if (this.btnUpdateExecute) this.btnUpdateExecute.disabled = false;
+      if (this.updateBtnText) {
+        this.updateBtnText.textContent = 'Restart Now';
+      }
     }
   }
 }
