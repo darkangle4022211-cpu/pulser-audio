@@ -18,43 +18,51 @@ if (!TOKEN) {
   process.exit(1);
 }
 
-function apiRequest(endpoint, method = 'GET', data = null) {
-  return new Promise((resolve, reject) => {
-    const postBody = data ? JSON.stringify(data) : null;
-    const req = https.request({
-      hostname: 'api.github.com',
-      port: 443,
-      path: endpoint,
-      method: method,
-      headers: {
-        'User-Agent': 'PulsarAudio-Pusher',
-        'Authorization': `Bearer ${TOKEN}`,
-        'Accept': 'application/vnd.github.v3+json',
-        ...(postBody ? {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(postBody)
-        } : {})
-      }
-    }, (res) => {
-      let body = '';
-      res.on('data', chunk => body += chunk);
-      res.on('end', () => {
-        try {
-          const json = body ? JSON.parse(body) : {};
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            resolve(json);
-          } else {
-            reject(new Error(`API Error ${res.statusCode}: ${JSON.stringify(json)}`));
+async function apiRequest(endpoint, method = 'GET', data = null, retries = 3) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await new Promise((resolve, reject) => {
+        const postBody = data ? JSON.stringify(data) : null;
+        const req = https.request({
+          hostname: 'api.github.com',
+          port: 443,
+          path: endpoint,
+          method: method,
+          headers: {
+            'User-Agent': 'PulsarAudio-Pusher',
+            'Authorization': `Bearer ${TOKEN}`,
+            'Accept': 'application/vnd.github.v3+json',
+            ...(postBody ? {
+              'Content-Type': 'application/json',
+              'Content-Length': Buffer.byteLength(postBody)
+            } : {})
           }
-        } catch (e) {
-          reject(e);
-        }
+        }, (res) => {
+          let body = '';
+          res.on('data', chunk => body += chunk);
+          res.on('end', () => {
+            try {
+              const json = body ? JSON.parse(body) : {};
+              if (res.statusCode >= 200 && res.statusCode < 300) {
+                resolve(json);
+              } else {
+                reject(new Error(`API Error ${res.statusCode}: ${JSON.stringify(json)}`));
+              }
+            } catch (e) {
+              reject(e);
+            }
+          });
+        });
+        req.on('error', reject);
+        if (postBody) req.write(postBody);
+        req.end();
       });
-    });
-    req.on('error', reject);
-    if (postBody) req.write(postBody);
-    req.end();
-  });
+    } catch (err) {
+      if (attempt === retries) throw err;
+      console.warn(`Request to ${endpoint} failed (attempt ${attempt}/${retries}): ${err.message}. Retrying in 2s...`);
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
 }
 
 export async function pushFilesToGitHub(commitMessage = 'feat: Full source code commit for Desktop Electron application') {
@@ -102,6 +110,8 @@ export async function pushFilesToGitHub(commitMessage = 'feat: Full source code 
     'scripts/push_code_to_github.mjs',
     'scripts/verify_desktop_qa.mjs',
     'scripts/verify_offline_shuffle.mjs',
+    'scripts/verify_modal_removal.mjs',
+    'scripts/verify_listen_again_playback.mjs',
     'scripts/qa_verify_windows.mjs'
   ];
 

@@ -129,12 +129,23 @@ class TasteEngine {
       this.profile.genreAffinity[gen] = (this.profile.genreAffinity[gen] || 0) + 15;
     }
 
-    // Add to recent history
+    // Add to recent history with full streaming and offline playback properties
+    const cleanYtId = track.ytId || (track.id && String(track.id).startsWith('yt_') ? String(track.id).replace(/^yt_/, '') : undefined);
+    const audioUrl = track.audioUrl || (cleanYtId ? `https://www.youtube.com/watch?v=${cleanYtId}` : undefined);
     this.profile.recentHistory.unshift({
       id: track.id,
+      ytId: cleanYtId,
       title: track.title,
       artist: track.artist,
+      album: track.album || 'YouTube Music',
+      duration: track.duration,
+      durationStr: track.durationStr,
+      audioUrl: audioUrl,
       coverUrl: track.coverUrl,
+      isOnline: !!track.isOnline || !!audioUrl || !!cleanYtId,
+      source: track.source || 'ytmusic',
+      filePath: track.filePath,
+      downloadedOffline: !!track.downloadedOffline,
       timestamp: Date.now()
     });
     if (this.profile.recentHistory.length > 50) {
@@ -327,7 +338,26 @@ class TasteEngine {
       // High dwell time (>= 30s) or played more than once
       if (dwell >= 30 || plays >= 2) {
         seen.add(key);
-        valid.push(h);
+
+        // Check if track was downloaded or exists in local library
+        const libMatch = Array.isArray(libraryTracks) ? libraryTracks.find(t => {
+          if (!t) return false;
+          if (t.id === h.id || (h.ytId && t.ytId === h.ytId)) return true;
+          if (t.title && h.title && t.title.trim().toLowerCase() === h.title.trim().toLowerCase() && (t.artist || '').trim().toLowerCase() === (h.artist || '').trim().toLowerCase()) return true;
+          return false;
+        }) : null;
+
+        const enriched = libMatch ? { ...libMatch, ...h, filePath: libMatch.filePath, downloadedOffline: libMatch.downloadedOffline } : { ...h };
+        if (!enriched.filePath && !enriched.downloadedOffline) {
+          const ytId = enriched.ytId || (enriched.id && String(enriched.id).startsWith('yt_') ? String(enriched.id).replace(/^yt_/, '') : null);
+          if (ytId) {
+            enriched.ytId = ytId;
+            enriched.audioUrl = enriched.audioUrl || `https://www.youtube.com/watch?v=${ytId}`;
+            enriched.isOnline = true;
+            enriched.source = enriched.source || 'ytmusic';
+          }
+        }
+        valid.push(enriched);
       }
     }
 

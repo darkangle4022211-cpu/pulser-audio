@@ -14,15 +14,15 @@ const REPO = "darkangle4022211-cpu/pulser-audio";
 const pkg = JSON.parse(fs.readFileSync(path.join(projectRoot, 'package.json'), 'utf8'));
 const VERSION = pkg.version;
 const TAG = `v${VERSION}`;
-const RELEASE_NAME = `v${VERSION} - Silent Background Auto-Updates & Seamless Close-to-Update`;
+const RELEASE_NAME = `v${VERSION} - Fixed Listen Again Online Playback & Performance`;
 const RELEASE_BODY = `### Pulsar Music Player v${VERSION} Production Release
 
 #### 🚀 What's New:
-- **100% Silent Background Auto-Updates:** Removed all intrusive "Downloading the update" modal windows. The player now updates silently in the background while you enjoy uninterrupted music.
-- **Top-Right Live Progress Indicator:** A sleek, non-intrusive status pill in the top header displays background progress percentage and transitions to an emerald "Restart Now" pill when ready.
-- **Seamless Close-to-Update:** Once the update finishes in the background, you do not even need to click restart. Whenever you naturally close and reopen Pulsar, the updated version is automatically running—no re-downloading required!
-- **Zero Sudo / Pkexec Prompts:** Completely user-space auto-updating requiring zero administrative passwords on Linux (AppImage) and Windows (NSIS).
-- **Exact Song Alignment & Zero Idle Footprint:** Whisper-quiet performance with <0.5% CPU/GPU idle usage.
+- **Flawless "Listen Again" Online Playback:** Fixed an issue where non-downloaded online tracks in the "Listen again" carousel showed an "Audio unavailable" error. Online tracks now resolve and stream smoothly.
+- **Historical Taste Profile Normalization:** Restores full YouTube streaming metadata for songs previously recorded in the local taste profile.
+- **Instant Local Offline Playback:** Downloaded songs in "Listen again" continue to play locally and instantly from disk with zero network latency.
+- **100% Silent Background Auto-Updates:** Non-intrusive background updater with top-right progress pill and seamless close-to-update functionality.
+- **Zero Sudo / Pkexec Prompts:** Completely user-space updates on both Linux AppImage and Windows.
 
 #### 📦 Downloads:
 - **Linux Portable AppImage (Auto-Updating):** \`Pulsar-Music-Player.AppImage\`

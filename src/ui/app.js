@@ -74,6 +74,7 @@ class App {
       downloadedInstallerPath: null
     };
 
+    this.tasteEngine = tasteEngine;
     window.app = this;
   }
 
@@ -1795,51 +1796,88 @@ class App {
       track.downloadedOffline = true;
     } else if (track.filePath && isLocalAbsolutePath(track.filePath)) {
       src = toPulsarAudioUrl(track.filePath);
-    } else if (track.isOnline && track.audioUrl) {
-      if (track.source === 'youtube' || track.source === 'ytmusic' || track.audioUrl.includes('youtube.com') || track.audioUrl.includes('youtu.be')) {
-        const nativeApi = window.electronAPI;
-        if (nativeApi && typeof nativeApi.getStreamUrl === 'function') {
-          this._isResolvingStream = true;
-          this._resolvingTrackId = track.id;
-          this._setBufferingState(true);
-          this._showToast(`Connecting audio stream for "${track.title}"...`, 'info');
-          try {
-            const res = await nativeApi.getStreamUrl(track.audioUrl);
-            if (res && res.success && res.streamUrl) {
-              src = res.streamUrl;
-            } else {
-              console.warn('Stream URL resolution failed:', res?.error);
-              src = null;
-            }
-          } catch (e) {
-            console.warn('Stream resolution exception:', e);
-            src = null;
-          } finally {
-            this._isResolvingStream = false;
-            this._resolvingTrackId = null;
-            this._setBufferingState(false);
-          }
-        } else {
-          src = null;
-        }
-      } else {
-        src = track.audioUrl;
-      }
     } else if (this.audioFilesMap.has(track.id)) {
       const file = this.audioFilesMap.get(track.id);
       src = URL.createObjectURL(file);
       track.blobUrl = src;
     } else {
-      // Retrieve audio binary Blob from persistent local storage
-      try {
-        const storedBlob = await db.getAudioFile(track.id);
-        if (storedBlob) {
-          this.audioFilesMap.set(track.id, storedBlob);
-          src = URL.createObjectURL(storedBlob);
-          track.blobUrl = src;
+      // If track is online or derived from YouTube, resolve YouTube audioUrl
+      const isOnlineTrack = track.isOnline ||
+        (track.id && String(track.id).startsWith('yt_')) ||
+        !!track.ytId ||
+        (track.audioUrl && (track.audioUrl.includes('youtube.com') || track.audioUrl.includes('youtu.be')));
+
+      if (isOnlineTrack && !track.audioUrl) {
+        const cleanYtId = track.ytId || (track.id && String(track.id).startsWith('yt_') ? String(track.id).replace(/^yt_/, '') : null);
+        if (cleanYtId) {
+          track.ytId = cleanYtId;
+          track.audioUrl = `https://www.youtube.com/watch?v=${cleanYtId}`;
+          track.isOnline = true;
+          track.source = track.source || 'ytmusic';
         }
-      } catch (err) {
-        console.warn('Error loading audio blob from DB:', err);
+      }
+
+      if (track.isOnline && track.audioUrl) {
+        if (track.source === 'youtube' || track.source === 'ytmusic' || track.audioUrl.includes('youtube.com') || track.audioUrl.includes('youtu.be')) {
+          const nativeApi = window.electronAPI;
+          if (nativeApi && typeof nativeApi.getStreamUrl === 'function') {
+            this._isResolvingStream = true;
+            this._resolvingTrackId = track.id;
+            this._setBufferingState(true);
+            this._showToast(`Connecting audio stream for "${track.title}"...`, 'info');
+            try {
+              const res = await nativeApi.getStreamUrl(track.audioUrl);
+              if (res && res.success && res.streamUrl) {
+                src = res.streamUrl;
+              } else {
+                console.warn('Stream URL resolution failed:', res?.error);
+                src = null;
+              }
+            } catch (e) {
+              console.warn('Stream resolution exception:', e);
+              src = null;
+            } finally {
+              this._isResolvingStream = false;
+              this._resolvingTrackId = null;
+              this._setBufferingState(false);
+            }
+          } else {
+            src = null;
+          }
+        } else {
+          src = track.audioUrl;
+        }
+      } else {
+        // Retrieve audio binary Blob from persistent local storage
+        try {
+          const storedBlob = await db.getAudioFile(track.id);
+          if (storedBlob) {
+            this.audioFilesMap.set(track.id, storedBlob);
+            src = URL.createObjectURL(storedBlob);
+            track.blobUrl = src;
+          }
+        } catch (err) {
+          console.warn('Error loading audio blob from DB:', err);
+        }
+
+        // Secondary fallback: if no local blob, search online music
+        if (!src && window.electronAPI && typeof window.electronAPI.searchOnlineMusic === 'function' && track.title) {
+          try {
+            const searchRes = await window.electronAPI.searchOnlineMusic(`${track.title} ${track.artist || ''}`.trim(), 1, 'songs');
+            if (searchRes && searchRes.success && searchRes.tracks && searchRes.tracks.length > 0) {
+              const found = searchRes.tracks[0];
+              track.ytId = found.ytId;
+              track.audioUrl = found.audioUrl;
+              track.isOnline = true;
+              track.source = found.source || 'ytmusic';
+              if (!track.coverUrl) track.coverUrl = found.coverUrl;
+              const res = await window.electronAPI.getStreamUrl(track.audioUrl);
+              if (res && res.success && res.streamUrl) {
+                src = res.streamUrl;
+              }
+            }
+          } catch (_) {}
+        }
       }
     }
 
@@ -3128,6 +3166,24 @@ class App {
 
     if (this.flowListenAgainSection) this.flowListenAgainSection.style.display = 'flex';
 
+    recent = recent.map(track => {
+      const libMatch = this._findLocalDownloadedMatch(track);
+      if (libMatch && (libMatch.filePath || this.audioFilesMap.has(libMatch.id))) {
+        return { ...track, ...libMatch, filePath: libMatch.filePath, downloadedOffline: true };
+      }
+      const ytId = track.ytId || (track.id && String(track.id).startsWith('yt_') ? String(track.id).replace(/^yt_/, '') : null);
+      if (ytId) {
+        return {
+          ...track,
+          ytId,
+          audioUrl: track.audioUrl || `https://www.youtube.com/watch?v=${ytId}`,
+          isOnline: true,
+          source: track.source || 'ytmusic'
+        };
+      }
+      return track;
+    });
+
     recent.forEach(track => {
       const card = document.createElement('div');
       card.className = 'listen-card';
@@ -3144,16 +3200,33 @@ class App {
         <div class="listen-card-title">${this._escapeHtml(track.title)}</div>
         <div class="listen-card-artist">${this._escapeHtml(track.artist)}</div>
       `;
-      card.addEventListener('click', () => {
-        const isTrackOnlineOnly = (track.isOnline || (track.audioUrl && !track.filePath)) && !track.downloadedOffline && !track.filePath && !track.blobUrl && !this.audioFilesMap.has(track.id);
-        if (isTrackOnlineOnly) {
-          this.playbackContext = 'online';
-          this._playOnlineTrack(track);
-        } else {
+      card.addEventListener('click', async () => {
+        const localMatch = this._findLocalDownloadedMatch(track);
+        if (localMatch && (localMatch.filePath || this.audioFilesMap.has(localMatch.id))) {
           this.playbackContext = 'offline';
+          playlistManager.setQueue([localMatch], 0);
+          this.radioQueue = playlistManager.queue;
+          await this._playTrack(localMatch, false);
+          this._renderNowPlayingQueue();
+          this._updateNowPlayingUI(localMatch);
+          this._updateReopenControlsVisibility();
+        } else {
+          const ytId = track.ytId || (track.id && String(track.id).startsWith('yt_') ? String(track.id).replace(/^yt_/, '') : null);
+          if (ytId) {
+            track.ytId = ytId;
+            track.audioUrl = track.audioUrl || `https://www.youtube.com/watch?v=${ytId}`;
+            track.isOnline = true;
+            track.source = track.source || 'ytmusic';
+          } else {
+            track.isOnline = true;
+          }
+          this.playbackContext = 'online';
           playlistManager.setQueue([track], 0);
           this.radioQueue = playlistManager.queue;
-          this._playTrack(track, false);
+          await this._playOnlineTrack(track, true);
+          this._renderNowPlayingQueue();
+          this._updateNowPlayingUI(track);
+          this._updateReopenControlsVisibility();
         }
       });
       this.flowListenAgainList.appendChild(card);
