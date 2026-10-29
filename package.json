@@ -112,9 +112,11 @@
       "icon": "build/icons/icon.ico"
     },
     "appx": {
+      "applicationId": "PulsarMusicPlayer",
       "identityName": "Habitpluse.PulsarMusicPlayer",
       "publisher": "CN=F1255B8C-F230-4A30-9E3F-6DD76C09C902",
       "publisherDisplayName": "Habitpluse",
+      "displayName": "Pulsar Music Player",
       "backgroundColor": "#12141a"
     },
     "nsis": {
