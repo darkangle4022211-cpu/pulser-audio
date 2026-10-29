@@ -234,6 +234,9 @@ class AudioEngine {
     try {
       if (this.audio) {
         this.audio.currentTime = target;
+        if (this.onTimeUpdate) {
+          this.onTimeUpdate(target, dur);
+        }
       }
     } catch (e) {
       console.warn('Seek error:', e);

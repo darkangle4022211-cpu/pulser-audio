@@ -385,7 +385,7 @@ class App {
       onPlayPause: () => this._togglePlayPause(),
       onNext: () => this._playNext(),
       onPrevious: () => this._playPrevious(),
-      onSeekRel: (delta) => audioEngine.seek(audioEngine.getCurrentTime() + delta),
+      onSeekRel: (delta) => this._seekRelative(delta),
       onSeekTo: (time) => audioEngine.seek(time),
       onStop: () => {
         if (audioEngine.isPlaying()) audioEngine.pause();
@@ -404,7 +404,7 @@ class App {
           this._togglePlayPause();
         }
       },
-      onSeekRel: (delta) => audioEngine.seek(audioEngine.getCurrentTime() + delta),
+      onSeekRel: (delta) => this._seekRelative(delta),
       onNext: () => this._playNext(),
       onPrevious: () => this._playPrevious(),
       onStop: () => {
@@ -436,6 +436,40 @@ class App {
       onToggleQueue: () => this._toggleNowPlayingStage(),
       onToggleSidebar: () => this._toggleSidebar()
     });
+  }
+
+  _seekRelative(delta) {
+    if (!this.activeTrack && !audioEngine.isPlaying()) return;
+    const dur = audioEngine.getDuration() || (this.activeTrack && this.activeTrack.duration ? this.activeTrack.duration : 0);
+    const curr = audioEngine.getCurrentTime();
+    let target = curr + delta;
+    if (dur && isFinite(dur) && dur > 0) {
+      target = Math.max(0, Math.min(dur, target));
+    } else {
+      target = Math.max(0, target);
+    }
+
+    audioEngine.seek(target);
+
+    // Update UI seeker immediately
+    if (dur && isFinite(dur) && dur > 0) {
+      this._updateSeeker(target, dur);
+    } else if (this.currentTimeLabel) {
+      this.currentTimeLabel.textContent = this._formatTime(target);
+    }
+
+    // Immediately sync lyrics
+    this._syncLyrics(target);
+
+    // Update MPRIS position state
+    if (this.bluetoothMedia && dur > 0) {
+      this.bluetoothMedia.updatePositionState(dur, target, audioEngine.audio ? audioEngine.audio.playbackRate : 1.0);
+    }
+
+    // Toast HUD indicator
+    const sign = delta > 0 ? '+' : '';
+    const icon = delta > 0 ? '⏩' : '⏪';
+    this._showToast(`${icon} ${sign}${delta}s (${this._formatTime(target)})`, 'info');
   }
 
   _bindEvents() {
@@ -1952,6 +1986,9 @@ class App {
     if (this._playRequestId !== requestId) return;
 
     if (playedSuccessfully) {
+      if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+        document.activeElement.blur();
+      }
       if (track.isOnline) {
         this._showToast(`Streaming "${track.title}" by ${track.artist}`, 'success');
       }
