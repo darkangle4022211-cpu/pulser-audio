@@ -26,7 +26,9 @@ jobs:
         run: npm run build
 
       - name: Package Windows AppX / MSIX
-        run: npx electron-builder --win appx
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win appx --publish never
 
       - name: Upload Store Package Artifact
         uses: actions/upload-artifact@v4
