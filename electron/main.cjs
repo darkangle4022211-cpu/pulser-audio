@@ -1724,6 +1724,25 @@ ipcMain.handle('clear-ytmusic-session', async () => {
   }
 });
 
+function getAudioMimeType(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case '.mp3': return 'audio/mpeg';
+    case '.flac': return 'audio/flac';
+    case '.wav': return 'audio/wav';
+    case '.ogg': return 'audio/ogg';
+    case '.m4a': return 'audio/mp4';
+    case '.aac': return 'audio/aac';
+    case '.opus': return 'audio/opus';
+    case '.weba': case '.webm': return 'audio/webm';
+    case '.jpg': case '.jpeg': return 'image/jpeg';
+    case '.png': return 'image/png';
+    case '.webp': return 'image/webp';
+    case '.svg': return 'image/svg+xml';
+    default: return 'application/octet-stream';
+  }
+}
+
 app.whenReady().then(() => {
   protocol.handle('pulsar-audio', async (request) => {
     try {
@@ -1746,16 +1765,41 @@ app.whenReady().then(() => {
         return new Response('File not found', { status: 404 });
       }
 
-      let fileUrl;
-      if (process.platform === 'win32' || winMatch) {
-        const normWin = fullPath.replace(/\\/g, '/');
-        const cleanDrive = normWin.startsWith('/') ? normWin.slice(1) : normWin;
-        fileUrl = 'file:///' + encodeURI(cleanDrive).replace(/#/g, '%23').replace(/\?/g, '%3F');
-      } else {
-        fileUrl = pathToFileURL(fullPath).toString();
+      const stat = fs.statSync(fullPath);
+      const totalSize = stat.size;
+      const mimeType = getAudioMimeType(fullPath);
+
+      // Support HTTP 206 Partial Content Range requests for seeking
+      const rangeHeader = request.headers.get('Range') || request.headers.get('range');
+      if (rangeHeader) {
+        const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
+        if (match) {
+          const start = parseInt(match[1], 10);
+          const end = match[2] ? parseInt(match[2], 10) : totalSize - 1;
+          const chunkSize = (end - start) + 1;
+          const stream = fs.createReadStream(fullPath, { start, end });
+          return new Response(Readable.toWeb(stream), {
+            status: 206,
+            statusText: 'Partial Content',
+            headers: {
+              'Content-Type': mimeType,
+              'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+              'Accept-Ranges': 'bytes',
+              'Content-Length': chunkSize.toString()
+            }
+          });
+        }
       }
 
-      return await net.fetch(fileUrl);
+      const stream = fs.createReadStream(fullPath);
+      return new Response(Readable.toWeb(stream), {
+        status: 200,
+        headers: {
+          'Content-Type': mimeType,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': totalSize.toString()
+        }
+      });
     } catch (err) {
       console.error('[pulsar-audio] protocol error:', err.message);
       return new Response('Error loading file: ' + err.message, { status: 500 });

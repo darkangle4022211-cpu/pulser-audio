@@ -2241,21 +2241,34 @@ class App {
     let isDragging = false;
     let seekTargetPos = 0;
 
+    const getDuration = () => {
+      const dur = audioEngine.getDuration();
+      if (dur && isFinite(dur) && dur > 0) return dur;
+      if (this.activeTrack && isFinite(this.activeTrack.duration) && this.activeTrack.duration > 0) {
+        return this.activeTrack.duration;
+      }
+      return 0;
+    };
+
     const updateSeekUI = (e) => {
       const rect = this.seekerWrapper.getBoundingClientRect();
       seekTargetPos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-      const duration = audioEngine.getDuration();
-      if (duration && !isNaN(duration)) {
+      const duration = getDuration();
+      if (duration > 0) {
         this._updateSeeker(seekTargetPos * duration, duration);
       }
     };
 
     const applySeek = () => {
-      const duration = audioEngine.getDuration();
-      if (duration && !isNaN(duration)) {
+      const duration = getDuration();
+      if (duration > 0) {
         const targetSeconds = seekTargetPos * duration;
         audioEngine.seek(targetSeconds);
         this._updateSeeker(targetSeconds, duration);
+        this._syncLyrics(targetSeconds);
+        if (this.bluetoothMedia) {
+          this.bluetoothMedia.updatePositionState(duration, targetSeconds, audioEngine.audio ? audioEngine.audio.playbackRate : 1.0);
+        }
       }
     };
 
@@ -2263,6 +2276,11 @@ class App {
       isDragging = true;
       this.isUserSeeking = true;
       updateSeekUI(e);
+    });
+
+    this.seekerWrapper.addEventListener('click', (e) => {
+      updateSeekUI(e);
+      applySeek();
     });
 
     window.addEventListener('mousemove', (e) => {
