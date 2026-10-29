@@ -106,9 +106,16 @@
     "win": {
       "target": [
         "nsis",
-        "portable"
+        "portable",
+        "appx"
       ],
       "icon": "build/icons/icon.ico"
+    },
+    "appx": {
+      "identityName": "Habitpluse.PulsarMusicPlayer",
+      "publisher": "CN=F1255B8C-F230-4A30-9E3F-6DD76C09C902",
+      "publisherDisplayName": "Habitpluse",
+      "backgroundColor": "#12141a"
     },
     "nsis": {
       "oneClick": false,
