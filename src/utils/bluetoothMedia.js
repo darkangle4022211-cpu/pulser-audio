@@ -23,7 +23,7 @@ export class BluetoothMediaManager {
     // Multi-tap detection state
     this.tapCount = 0;
     this.tapTimer = null;
-    this.TAP_WINDOW_MS = 340; // Optimal window for rapid double and triple taps
+    this.TAP_WINDOW_MS = 240; // Fast responsive window for rapid double and triple taps
 
     this._initMediaSession();
     this._initIPC();

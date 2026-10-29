@@ -87,6 +87,22 @@
       "artifactName": "Pulsar-Music-Player.${ext}",
       "license": "LICENSE"
     },
+    "snap": {
+      "confinement": "strict",
+      "grade": "stable",
+      "slots": [
+        {
+          "mpris": {
+            "name": "chromium"
+          }
+        }
+      ],
+      "plugs": [
+        "default",
+        "removable-media",
+        "network-bind"
+      ]
+    },
     "win": {
       "target": [
         "nsis",

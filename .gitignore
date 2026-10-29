@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production and distribution build outputs
+dist/
+dist-electron/
+build/temp/
+*.deb
+*.rpm
+*.AppImage
+*.exe
+*.dmg
+*.zip
+*.tar.gz
+*.snap
+*.token
+*.login
+.github_token
+
+# External bulky binaries
+bin/ffmpeg
+bin/yt-dlp
+bin/
+bin
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+
+# Logs and debug files
+logs/
+*.log
+scratch/
+test-tracks/
+releases/
+npm-debug.log*
+yarn-debug.log*
+
+# Operating system files
+.DS_Store
+Thumbs.db

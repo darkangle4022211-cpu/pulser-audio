@@ -674,6 +674,31 @@
       </div>
     </div>
 
+    <!-- Universal In-App Confirmation Modal (Replaces browser confirm/alert) -->
+    <div class="modal-backdrop" id="confirmModal">
+      <div class="modal-dialog" style="max-width:440px;">
+        <div class="modal-header">
+          <h3 class="modal-title" id="confirmModalTitle">Confirm Action</h3>
+          <button id="closeConfirmModalBtn" class="icon-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div style="display:flex; align-items:flex-start; gap:14px; margin-bottom:8px;">
+            <div id="confirmModalIcon" style="flex-shrink:0; margin-top:2px;">
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="var(--accent-danger, #ef4444)"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            </div>
+            <div>
+              <p id="confirmModalMessage" style="color:var(--text-primary, #f1f5f9); font-size:14px; font-weight:600; margin:0 0 6px 0; line-height:1.4;"></p>
+              <p id="confirmModalSubtext" style="color:var(--text-secondary, #94a3b8); font-size:13px; margin:0; line-height:1.4;"></p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer" style="display:flex; justify-content:flex-end; gap:10px;">
+          <button id="confirmCancelBtn" class="btn btn-secondary" style="min-width:85px;">Cancel</button>
+          <button id="confirmOkBtn" class="btn btn-danger" style="min-width:100px; background:var(--accent-danger, #ef4444); color:#fff; border:none; font-weight:600;">Delete</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Add Track To Playlist Picker Modal -->
     <div class="modal-backdrop" id="selectPlaylistModal">
       <div class="modal-dialog" style="max-width:440px;">

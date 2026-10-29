@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="pulsarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#pulsarGrad)"/>
+  <rect x="48" y="48" width="416" height="416" rx="84" fill="#0f141e" fill-opacity="0.88" stroke="rgba(255,255,255,0.2)" stroke-width="4"/>
+  <g fill="#ffffff" filter="url(#glow)">
+    <circle cx="180" cy="355" r="40"/>
+    <circle cx="330" cy="315" r="40"/>
+    <rect x="200" y="150" width="20" height="190"/>
+    <rect x="350" y="110" width="20" height="190"/>
+    <polygon points="200,150 370,110 370,155 200,195"/>
+  </g>
+  <path d="M380 180 A60 60 0 0 1 380 280" fill="none" stroke="#06b6d4" stroke-width="8" stroke-linecap="round"/>
+  <path d="M405 155 A95 95 0 0 1 405 305" fill="none" stroke="#22d3ee" stroke-width="8" stroke-linecap="round"/>
+</svg>

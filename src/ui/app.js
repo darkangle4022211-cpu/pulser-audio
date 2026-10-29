@@ -212,6 +212,14 @@ class App {
     this.dupAddAnywayBtn = document.getElementById('dupAddAnywayBtn');
     this.dupPromptText = document.getElementById('dupPromptText');
 
+    this.confirmModal = document.getElementById('confirmModal');
+    this.confirmModalTitle = document.getElementById('confirmModalTitle');
+    this.closeConfirmModalBtn = document.getElementById('closeConfirmModalBtn');
+    this.confirmModalMessage = document.getElementById('confirmModalMessage');
+    this.confirmModalSubtext = document.getElementById('confirmModalSubtext');
+    this.confirmCancelBtn = document.getElementById('confirmCancelBtn');
+    this.confirmOkBtn = document.getElementById('confirmOkBtn');
+
     this.trackInfoModal = document.getElementById('trackInfoModal');
     this.closeTrackInfoBtn = document.getElementById('closeTrackInfoBtn');
     this.cancelTrackInfoBtn = document.getElementById('cancelTrackInfoBtn');
@@ -459,7 +467,10 @@ class App {
         this.searchQuery = e.target.value;
         if (this.searchClearBtn) this.searchClearBtn.classList.toggle('visible', !!this.searchQuery);
         if (this.currentView === 'discover') {
-          this._debouncedOnlineSearch(this.searchQuery);
+          if (this.flowSearchInput) {
+            this.flowSearchInput.value = this.searchQuery;
+            this.flowSearchInput.dispatchEvent(new Event('input', { bubbles: true }));
+          }
         } else {
           this._renderTracks();
         }
@@ -472,7 +483,8 @@ class App {
         this.searchClearBtn.classList.remove('visible');
         if (this.currentView === 'discover') {
           this.onlineSearchQuery = '';
-          this._loadDiscoverView(false);
+          if (this.flowSearchInput) this.flowSearchInput.value = '';
+          this._loadFlowView();
         } else {
           this._renderTracks();
         }
@@ -812,8 +824,10 @@ class App {
       }
       if (duration && isFinite(duration) && duration > 0 && this.activeTrack && (!this.activeTrack.duration || this.activeTrack.duration <= 0)) {
         this.activeTrack.duration = duration;
-        db.saveTrack(this.activeTrack).catch(() => {});
-        this._renderTracks();
+        if (!this._isOnlineOnlyTrack(this.activeTrack)) {
+          db.saveTrack(this.activeTrack).catch(() => {});
+          this._renderTracks();
+        }
       }
     };
 
@@ -1081,6 +1095,26 @@ class App {
       await this._seedSampleTracks();
     }
     await playlistManager.loadPlaylists();
+
+    // Prune un-downloaded online tracks from library that are NOT part of any custom playlist
+    const playlistTrackIds = new Set();
+    if (playlistManager && playlistManager.playlists) {
+      for (const pl of playlistManager.playlists) {
+        if (Array.isArray(pl.trackIds)) {
+          for (const tid of pl.trackIds) playlistTrackIds.add(tid);
+        }
+      }
+    }
+    const retainedTracks = [];
+    for (const t of this.tracks) {
+      if (this._isOnlineOnlyTrack(t) && !playlistTrackIds.has(t.id) && !t.isFavorite) {
+        await db.deleteTrack(t.id).catch(() => {});
+      } else {
+        retainedTracks.push(t);
+      }
+    }
+    this.tracks = retainedTracks;
+
     await playlistManager.pruneMissingTracks(this.tracks.map(t => t.id));
     tasteEngine.seedFromLibrary(this.tracks);
     this._updateBadgeCounts();
@@ -1323,7 +1357,8 @@ class App {
   }
 
   _updateBadgeCounts() {
-    this.allTracksCount.textContent = this.tracks.length;
+    const offlineTracks = this.tracks.filter(t => !this._isOnlineOnlyTrack(t));
+    this.allTracksCount.textContent = offlineTracks.length;
     const favCount = this.tracks.filter(t => t.isFavorite).length;
     this.favTracksCount.textContent = favCount;
   }
@@ -1468,7 +1503,7 @@ class App {
   _getCurrentViewTracks() {
     let list = [];
     if (this.currentView === 'all-songs') {
-      list = [...this.tracks];
+      list = this.tracks.filter(t => !this._isOnlineOnlyTrack(t));
     } else if (this.currentView === 'favorites') {
       list = this.tracks.filter(t => t.isFavorite);
     } else if (this.currentView === 'recent') {
@@ -2741,7 +2776,15 @@ class App {
   }
 
   async _confirmDeletePlaylist(playlistId, playlistName) {
-    if (confirm(`Delete playlist "${playlistName}"? This will not delete your songs from the library.`)) {
+    const confirmed = await this._showConfirmDialog({
+      title: 'Delete Playlist',
+      message: `Delete playlist "${playlistName}"?`,
+      subtext: 'This will not delete your songs from the library or PC.',
+      confirmText: 'Delete Playlist',
+      cancelText: 'Cancel',
+      isDestructive: true
+    });
+    if (confirmed) {
       await playlistManager.deletePlaylist(playlistId);
       this._renderPlaylistsNav();
       if (this.currentView === playlistId) {
@@ -3391,11 +3434,23 @@ class App {
         }
       } else {
         // Delete from library & permanently delete physical file from PC
-        if (confirm(`Permanently delete "${track.title}" from your library and PC? This removes the audio file from your device.`)) {
+        const isOnlineTrack = this._isOnlineOnlyTrack(track);
+        const confirmed = await this._showConfirmDialog({
+          title: isOnlineTrack ? 'Remove from Library' : 'Delete from Library & PC',
+          message: `Delete "${track.title}" from your library?`,
+          subtext: isOnlineTrack
+            ? 'This removes the online song from your library.'
+            : 'This permanently deletes the audio file from your PC and removes it from your library.',
+          confirmText: isOnlineTrack ? 'Remove' : 'Delete Permanently',
+          cancelText: 'Cancel',
+          isDestructive: true
+        });
+
+        if (confirmed) {
           // 1. Delete physical audio file from PC disk
           const nativeApi = window.electronAPI;
           let physicalResult = null;
-          if (nativeApi && nativeApi.deletePhysicalFile) {
+          if (!isOnlineTrack && nativeApi && nativeApi.deletePhysicalFile) {
             try {
               const targetPath = track.filePath || track.fileName;
               if (targetPath) {
@@ -3416,19 +3471,19 @@ class App {
           // 4. Stop if playing
           if (this.activeTrack && this.activeTrack.id === track.id) {
             this._stop();
-            this.activeTrack = null;
           }
           this.tracks = this.tracks.filter(t => t.id !== track.id);
           this.audioFilesMap.delete(track.id);
+          this.downloadedTrackIds.delete(track.id);
 
           // 5. Update UI
           this._updateBadgeCounts();
           this._renderPlaylistsNav();
           this._renderTracks();
 
-          if (physicalResult && physicalResult.success) {
+          if (!isOnlineTrack && physicalResult && physicalResult.success) {
             this._showToast(`Permanently deleted "${track.title}" from PC and library`, 'info');
-          } else if (physicalResult && !physicalResult.success) {
+          } else if (!isOnlineTrack && physicalResult && !physicalResult.success) {
             this._showToast(`Removed "${track.title}" from library (${physicalResult.error || 'Physical file not found on PC'})`, 'warning');
           } else {
             this._showToast(`Removed "${track.title}" from library`, 'info');
@@ -3497,7 +3552,11 @@ class App {
     this._closeModal(this.trackInfoModal);
     this._renderTracks();
     if (this.currentView === 'discover') {
-      this._renderOnlineList();
+      if (typeof this._renderOnlineList === 'function') {
+        this._renderOnlineList();
+      } else {
+        this._loadFlowView();
+      }
     }
 
     if (this.activeTrack && this.activeTrack.id === this.contextTargetTrack.id) {
@@ -3588,6 +3647,74 @@ class App {
     this._toastTimer = setTimeout(() => {
       toast.classList.remove('visible');
     }, 3200);
+  }
+
+  _isOnlineOnlyTrack(t) {
+    if (!t) return false;
+    if (t.downloadedOffline === true) return false;
+    if (t.filePath && typeof t.filePath === 'string' && t.filePath.trim().length > 0) return false;
+    if (t.blobUrl && typeof t.blobUrl === 'string' && !t.blobUrl.startsWith('http')) return false;
+    if (this.audioFilesMap && this.audioFilesMap.has(t.id)) return false;
+
+    if (t.isOnline) return true;
+    if (t.audioUrl && (!t.filePath || t.audioUrl.startsWith('http') || t.audioUrl.startsWith('blob:'))) return true;
+    if (t.id && (String(t.id).startsWith('yt_') || String(t.id).startsWith('online_'))) return true;
+    if (t.album === 'Trending Online') return true;
+    return false;
+  }
+
+  _stop() {
+    if (audioEngine.isPlaying()) {
+      audioEngine.pause();
+    }
+    audioEngine.seek(0);
+    this.activeTrack = null;
+    if (this.playIcon) this.playIcon.style.display = 'block';
+    if (this.pauseIcon) this.pauseIcon.style.display = 'none';
+    if (this.playerTitle) this.playerTitle.textContent = 'No track playing';
+    if (this.playerArtist) this.playerArtist.textContent = 'Select a track to start listening';
+    if (this.playerThumb) {
+      this.playerThumb.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24' fill='%238b5cf6'%3E%3Crect width='24' height='24' fill='%231a1e28'/%3E%3Cpath d='M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z'/%3E%3C/svg%3E";
+    }
+    if (this.bluetoothMedia) {
+      this.bluetoothMedia.updatePlaybackState(false);
+    }
+    this._renderTracks();
+  }
+
+  _showConfirmDialog({ title = 'Confirm Action', message = '', subtext = '', confirmText = 'Confirm', cancelText = 'Cancel', isDestructive = false }) {
+    return new Promise((resolve) => {
+      if (!this.confirmModal) return resolve(true);
+
+      if (this.confirmModalTitle) this.confirmModalTitle.textContent = title;
+      if (this.confirmModalMessage) this.confirmModalMessage.textContent = message;
+      if (this.confirmModalSubtext) this.confirmModalSubtext.textContent = subtext;
+      if (this.confirmOkBtn) {
+        this.confirmOkBtn.textContent = confirmText;
+        if (isDestructive) {
+          this.confirmOkBtn.style.background = 'var(--accent-danger, #ef4444)';
+          this.confirmOkBtn.style.color = '#fff';
+        } else {
+          this.confirmOkBtn.style.background = 'var(--accent-primary, #8b5cf6)';
+          this.confirmOkBtn.style.color = '#fff';
+        }
+      }
+      if (this.confirmCancelBtn) this.confirmCancelBtn.textContent = cancelText;
+
+      this._openModal(this.confirmModal);
+
+      const cleanup = (result) => {
+        this._closeModal(this.confirmModal);
+        if (this.confirmOkBtn) this.confirmOkBtn.onclick = null;
+        if (this.confirmCancelBtn) this.confirmCancelBtn.onclick = null;
+        if (this.closeConfirmModalBtn) this.closeConfirmModalBtn.onclick = null;
+        resolve(result);
+      };
+
+      if (this.confirmOkBtn) this.confirmOkBtn.onclick = () => cleanup(true);
+      if (this.confirmCancelBtn) this.confirmCancelBtn.onclick = () => cleanup(false);
+      if (this.closeConfirmModalBtn) this.closeConfirmModalBtn.onclick = () => cleanup(false);
+    });
   }
 
   // --- Utilities ---
@@ -4562,10 +4689,12 @@ class App {
     if (!track || this.downloadingTrackIds.has(track.id)) return;
 
     const isAlreadyInLibrary = this.downloadedTrackIds.has(track.id) ||
-      this.tracks.some(t => t.id === track.id || (
-        t.title && track.title &&
-        t.title.trim().toLowerCase() === track.title.trim().toLowerCase() &&
-        (t.artist || '').trim().toLowerCase() === (track.artist || '').trim().toLowerCase()
+      this.tracks.some(t => !this._isOnlineOnlyTrack(t) && (
+        t.id === track.id || (
+          t.title && track.title &&
+          t.title.trim().toLowerCase() === track.title.trim().toLowerCase() &&
+          (t.artist || '').trim().toLowerCase() === (track.artist || '').trim().toLowerCase()
+        )
       ));
 
     if (isAlreadyInLibrary) {

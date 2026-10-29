@@ -435,6 +435,8 @@ function getYtDlpPath() {
     return 'yt-dlp.exe';
   }
   const candidates = [
+    process.env.SNAP_USER_DATA ? path.join(process.env.SNAP_USER_DATA, 'yt-dlp_linux') : null,
+    process.env.SNAP ? path.join(process.env.SNAP, 'resources', 'bin', 'yt-dlp') : null,
     path.join(__dirname, '../bin/yt-dlp'),
     path.join(__dirname, 'bin/yt-dlp'),
     '/opt/pulsar-music-player/bin/yt-dlp',
@@ -1595,19 +1597,29 @@ ipcMain.handle('check-file-exists', async (event, filePath) => {
   return fs.existsSync(filePath);
 });
 
-ipcMain.handle('delete-physical-file', async (event, filePath) => {
-  if (!filePath || typeof filePath !== 'string') return { success: false, error: 'Invalid path' };
+ipcMain.handle('delete-physical-file', async (event, rawFilePath) => {
+  if (!rawFilePath || typeof rawFilePath !== 'string') return { success: false, error: 'Invalid path' };
   try {
+    let cleanPath = rawFilePath;
+    if (cleanPath.startsWith('pulsar-audio://')) {
+      cleanPath = cleanPath.replace(/^pulsar-audio:\/\//, '');
+      try { cleanPath = decodeURIComponent(cleanPath); } catch (_) {}
+    } else if (cleanPath.startsWith('file://')) {
+      cleanPath = cleanPath.replace(/^file:\/\//, '');
+      try { cleanPath = decodeURIComponent(cleanPath); } catch (_) {}
+    }
     const downloadDir = getDownloadDirectory();
     const candidates = [
-      filePath,
-      path.resolve(filePath),
-      path.resolve(app.getAppPath(), filePath),
-      path.resolve(__dirname, '..', filePath),
-      path.join(downloadDir, path.basename(filePath)),
-      path.join(os.homedir(), 'Music', 'Pulsar Downloads', path.basename(filePath)),
-      path.join(os.homedir(), 'Music', path.basename(filePath)),
-      path.join(os.homedir(), 'Downloads', path.basename(filePath))
+      rawFilePath,
+      cleanPath,
+      path.resolve(cleanPath),
+      path.resolve(app.getAppPath(), cleanPath),
+      path.resolve(__dirname, '..', cleanPath),
+      path.join(downloadDir, path.basename(cleanPath)),
+      path.join(downloadDir, path.basename(rawFilePath)),
+      path.join(os.homedir(), 'Music', 'Pulsar Downloads', path.basename(cleanPath)),
+      path.join(os.homedir(), 'Music', path.basename(cleanPath)),
+      path.join(os.homedir(), 'Downloads', path.basename(cleanPath))
     ];
     for (const p of candidates) {
       if (p && fs.existsSync(p)) {
@@ -1631,7 +1643,7 @@ ipcMain.handle('delete-physical-file', async (event, filePath) => {
     }
     return { success: false, error: 'File not found on disk' };
   } catch (err) {
-    console.warn('Failed to delete physical file:', filePath, err.message);
+    console.warn('Failed to delete physical file:', rawFilePath, err.message);
     return { success: false, error: err.message };
   }
 });
@@ -1971,6 +1983,18 @@ app.on('window-all-closed', () => {
 // ============================================================================
 function setupLinuxDesktopIntegration() {
   if (process.platform !== 'linux') return;
+  // In Snap confinement, snapd automatically handles system desktop integration.
+  // Creating a file in ~/.local/share/applications would create a duplicate launcher icon.
+  if (process.env.SNAP) {
+    try {
+      const homeDir = process.env.HOME || os.homedir();
+      const duplicateDesktop = path.join(homeDir, '.local', 'share', 'applications', 'pulsar-music-player.desktop');
+      if (fs.existsSync(duplicateDesktop)) {
+        fs.unlinkSync(duplicateDesktop);
+      }
+    } catch (_) {}
+    return;
+  }
   try {
     const homeDir = process.env.HOME || os.homedir();
     const appsDir = path.join(homeDir, '.local', 'share', 'applications');
