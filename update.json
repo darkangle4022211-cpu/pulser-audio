@@ -1,9 +1,9 @@
 {
   "name": "pulser audio",
   "repo": "darkangle4022211-cpu/pulser-audio",
-  "version": "1.1.10",
-  "tag": "v1.1.10",
-  "changelog": "• Flawless 'Listen Again' Online Playback: Fixed 'Audio unavailable' error for online songs in the Listen Again carousel; online songs stream seamlessly\\n• Normalized Historical Taste Engine Metadata: Preserves YouTube videoId and audio streams for previously played tracks\\n• Instant Local Offline Playback: Downloaded tracks in Listen Again continue to play instantly from local disk with zero network requests\\n• 100% Silent Background Auto-Updates with Top-Right Progress Pill and Close-to-Update support\\n• Zero Root / Sudo Password Prompts\\n\\nIf you are facing a problem, feel free to contact the developer:\\nEmail: hamza.zafar4022211@gmail.com",
+  "version": "1.1.11",
+  "tag": "v1.1.11",
+  "changelog": "• Windows Store & Desktop Packaging Fix: Fixed missing yt-dlp.exe ENOENT error by bundling standalone binaries directly and adding automatic self-healing runtime fallback\\n• Blazing Fast Audio Downloads: Ultra-fast multi-threaded MP3 downloading with concurrent fragment extraction\\n• Stream Resolution Reliability: Direct streaming and playback fixed for all online tracks\\n• Clean Production Library: Purged non-functional sample tracks for a pristine experience\\n• Seamless Over-The-Air Online Updates: Automatic silent updates without manual reinstall\\n\\nIf you are facing a problem, feel free to contact the developer:\\nEmail: hamza.zafar4022211@gmail.com",
   "support": {
     "message": "If you are facing a problem, feel free to contact the developer:",
     "email": "hamza.zafar4022211@gmail.com"

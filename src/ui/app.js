@@ -147,7 +147,6 @@ class App {
     this.emptyStateDesc = document.getElementById('emptyStateDesc');
     this.emptyAddBtn = document.getElementById('emptyAddBtn');
     this.plEmptyAddSongsBtn = document.getElementById('plEmptyAddSongsBtn');
-    this.emptyDemoBtn = document.getElementById('emptyDemoBtn');
     this.playlistsEmptyHint = document.getElementById('playlistsEmptyHint');
 
     // Player Bar
@@ -708,14 +707,6 @@ class App {
     // File Importing
     this.addFilesBtn.addEventListener('click', () => this._handleOpenFiles());
     this.emptyAddBtn.addEventListener('click', () => this._handleOpenFiles());
-    if (this.emptyDemoBtn) {
-      this.emptyDemoBtn.addEventListener('click', async () => {
-        await this._seedSampleTracks();
-        this._updateBadgeCounts();
-        this._renderPlaylistsNav();
-        this._renderTracks();
-      });
-    }
     this.addFolderBtn.addEventListener('click', () => this._handleOpenFolder());
     this.backupBtn.addEventListener('click', () => playlistManager.exportFullBackup());
 
@@ -1125,10 +1116,26 @@ class App {
     // Auto-sync physical download directory (~/Music/Pulsar Downloads) into library
     await this._syncDownloadFolderTracks();
 
-    if (this.tracks.length === 0) {
-      await this._seedSampleTracks();
-    }
+    // Purge legacy sample demo tracks from user database if previously seeded
+    try {
+      const sampleIds = ['trk_sample_cosmic_horizon', 'trk_sample_cybernetic_pulse'];
+      for (const sId of sampleIds) {
+        if (this.tracks.some(t => t.id === sId)) {
+          await db.deleteTrack(sId).catch(() => {});
+        }
+      }
+      this.tracks = this.tracks.filter(t => !sampleIds.includes(t.id));
+    } catch (_) {}
+
     await playlistManager.loadPlaylists();
+
+    // Remove legacy demo playlist 'Synthwave Favorites' if previously created
+    try {
+      const demoPl = playlistManager.playlists?.find(p => p.name === 'Synthwave Favorites');
+      if (demoPl) {
+        await playlistManager.deletePlaylist(demoPl.id).catch(() => {});
+      }
+    } catch (_) {}
 
     // Prune un-downloaded online tracks from library that are NOT part of any custom playlist
     const playlistTrackIds = new Set();
@@ -1334,62 +1341,6 @@ class App {
     }
   }
 
-  async _seedSampleTracks() {
-    try {
-      const samples = [
-        {
-          id: 'trk_sample_cosmic_horizon',
-          title: 'Cosmic Horizon',
-          artist: 'Pulsar Audio',
-          album: 'Offline Odyssey',
-          year: '2026',
-          duration: 6.27,
-          fileName: '01_Cosmic_Horizon.mp3',
-          fileSize: 250669,
-          dateAdded: Date.now() - 100000,
-          playCount: 1,
-          isFavorite: true,
-          blobUrl: './test-tracks/01_Cosmic_Horizon.mp3',
-          src: './test-tracks/01_Cosmic_Horizon.mp3',
-          lrcUrl: './test-tracks/01_Cosmic_Horizon.lrc',
-          coverUrl: ''
-        },
-        {
-          id: 'trk_sample_cybernetic_pulse',
-          title: 'Cybernetic Pulse',
-          artist: 'Pulsar Audio',
-          album: 'Offline Odyssey',
-          year: '2026',
-          duration: 6.27,
-          fileName: '02_Cybernetic_Pulse.mp3',
-          fileSize: 250661,
-          dateAdded: Date.now() - 50000,
-          playCount: 0,
-          isFavorite: false,
-          blobUrl: './test-tracks/02_Cybernetic_Pulse.mp3',
-          src: './test-tracks/02_Cybernetic_Pulse.mp3',
-          coverUrl: ''
-        }
-      ];
-
-      for (const track of samples) {
-        await db.saveTrack(track);
-      }
-      this.tracks = await db.getAllTracks();
-
-      await playlistManager.loadPlaylists();
-      if (playlistManager.playlists.length === 0) {
-        const pl = await playlistManager.createPlaylist('Synthwave Favorites', 'Sample demo playlist featuring offline tracks');
-        if (pl) {
-          await playlistManager.addTrackToPlaylist(pl.id, 'trk_sample_cosmic_horizon');
-          await playlistManager.addTrackToPlaylist(pl.id, 'trk_sample_cybernetic_pulse');
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to seed sample tracks:', e);
-    }
-  }
-
   _updateBadgeCounts() {
     const offlineTracks = this.tracks.filter(t => !this._isOnlineOnlyTrack(t));
     this.allTracksCount.textContent = offlineTracks.length;
@@ -1570,12 +1521,10 @@ class App {
         if (this.emptyStateTitle) this.emptyStateTitle.textContent = 'This Playlist is Empty';
         if (this.emptyStateDesc) this.emptyStateDesc.textContent = 'Add songs from your music library or import audio files to this playlist.';
         if (this.plEmptyAddSongsBtn) this.plEmptyAddSongsBtn.style.display = 'inline-flex';
-        if (this.emptyDemoBtn) this.emptyDemoBtn.style.display = 'none';
       } else {
         if (this.emptyStateTitle) this.emptyStateTitle.textContent = 'Your Music Library is Empty';
         if (this.emptyStateDesc) this.emptyStateDesc.textContent = 'Add your downloaded MP3 audio files or drag and drop songs directly into this window to start listening completely offline.';
         if (this.plEmptyAddSongsBtn) this.plEmptyAddSongsBtn.style.display = 'none';
-        if (this.emptyDemoBtn) this.emptyDemoBtn.style.display = 'inline-flex';
       }
     }
 

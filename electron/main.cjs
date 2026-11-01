@@ -419,11 +419,22 @@ function getDownloadDirectory() {
 
 // Helper to resolve yt-dlp binary across environments
 function getYtDlpPath() {
+  let userBinDir = '';
+  try {
+    userBinDir = path.join(app.getPath('userData'), 'bin');
+  } catch (_) {
+    userBinDir = path.join(os.homedir(), '.pulsar-music-player', 'bin');
+  }
+
   if (process.platform === 'win32') {
     const candidates = [
+      path.join(userBinDir, 'yt-dlp.exe'),
       path.join(process.resourcesPath || '', 'bin', 'win', 'yt-dlp.exe'),
+      path.join(process.resourcesPath || '', 'bin', 'yt-dlp.exe'),
       path.join(path.dirname(process.execPath || ''), 'resources', 'bin', 'win', 'yt-dlp.exe'),
+      path.join(path.dirname(process.execPath || ''), 'resources', 'bin', 'yt-dlp.exe'),
       path.join(process.resourcesPath || '', 'app.asar.unpacked', 'bin', 'win', 'yt-dlp.exe'),
+      path.join(process.resourcesPath || '', 'app.asar.unpacked', 'bin', 'yt-dlp.exe'),
       path.join(__dirname, '../bin/win/yt-dlp.exe'),
       path.join(__dirname, 'bin/win/yt-dlp.exe'),
       path.join(process.cwd(), 'resources', 'bin', 'win', 'yt-dlp.exe'),
@@ -432,9 +443,10 @@ function getYtDlpPath() {
     for (const c of candidates) {
       if (c && fs.existsSync(c)) return c;
     }
-    return 'yt-dlp.exe';
+    return null;
   }
   const candidates = [
+    path.join(userBinDir, 'yt-dlp'),
     process.env.SNAP_USER_DATA ? path.join(process.env.SNAP_USER_DATA, 'yt-dlp_linux') : null,
     process.env.SNAP ? path.join(process.env.SNAP, 'resources', 'bin', 'yt-dlp') : null,
     path.join(__dirname, '../bin/yt-dlp'),
@@ -449,16 +461,27 @@ function getYtDlpPath() {
   for (const c of candidates) {
     if (c && fs.existsSync(c)) return c;
   }
-  return 'yt-dlp';
+  return null;
 }
 
 // Helper to resolve ffmpeg binary across environments
 function getFfmpegPath() {
+  let userBinDir = '';
+  try {
+    userBinDir = path.join(app.getPath('userData'), 'bin');
+  } catch (_) {
+    userBinDir = path.join(os.homedir(), '.pulsar-music-player', 'bin');
+  }
+
   if (process.platform === 'win32') {
     const candidates = [
+      path.join(userBinDir, 'ffmpeg.exe'),
       path.join(process.resourcesPath || '', 'bin', 'win', 'ffmpeg.exe'),
+      path.join(process.resourcesPath || '', 'bin', 'ffmpeg.exe'),
       path.join(path.dirname(process.execPath || ''), 'resources', 'bin', 'win', 'ffmpeg.exe'),
+      path.join(path.dirname(process.execPath || ''), 'resources', 'bin', 'ffmpeg.exe'),
       path.join(process.resourcesPath || '', 'app.asar.unpacked', 'bin', 'win', 'ffmpeg.exe'),
+      path.join(process.resourcesPath || '', 'app.asar.unpacked', 'bin', 'ffmpeg.exe'),
       path.join(__dirname, '../bin/win/ffmpeg.exe'),
       path.join(__dirname, 'bin/win/ffmpeg.exe'),
       path.join(process.cwd(), 'resources', 'bin', 'win', 'ffmpeg.exe'),
@@ -467,9 +490,10 @@ function getFfmpegPath() {
     for (const c of candidates) {
       if (c && fs.existsSync(c)) return c;
     }
-    return 'ffmpeg.exe';
+    return null;
   }
   const candidates = [
+    path.join(userBinDir, 'ffmpeg'),
     path.join(__dirname, '../bin/ffmpeg'),
     path.join(__dirname, 'bin/ffmpeg'),
     '/opt/pulsar-music-player/bin/ffmpeg',
@@ -484,6 +508,103 @@ function getFfmpegPath() {
     if (c && fs.existsSync(c)) return c;
   }
   return null;
+}
+
+// Self-healing yt-dlp binary downloader
+let ytDlpDownloadPromise = null;
+
+function downloadBinaryFile(url, destPath) {
+  return new Promise((resolve, reject) => {
+    const tmpPath = `${destPath}.tmp.${Date.now()}`;
+    const file = fs.createWriteStream(tmpPath);
+
+    function getWithRedirect(targetUrl, maxRedirects = 5) {
+      if (maxRedirects <= 0) {
+        file.close();
+        fs.unlink(tmpPath, () => {});
+        return reject(new Error('Too many redirects while downloading binary'));
+      }
+      const client = targetUrl.startsWith('https') ? https : http;
+      client.get(targetUrl, { headers: { 'User-Agent': 'Mozilla/5.0 PulsarPlayer/1.0' } }, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          return getWithRedirect(res.headers.location, maxRedirects - 1);
+        }
+        if (res.statusCode !== 200) {
+          file.close();
+          fs.unlink(tmpPath, () => {});
+          return reject(new Error(`Failed to download binary: HTTP ${res.statusCode}`));
+        }
+        res.pipe(file);
+        file.on('finish', () => {
+          file.close(async () => {
+            try {
+              await fs.promises.rename(tmpPath, destPath);
+              resolve(destPath);
+            } catch (e) {
+              reject(e);
+            }
+          });
+        });
+      }).on('error', (err) => {
+        file.close();
+        fs.unlink(tmpPath, () => {});
+        reject(err);
+      });
+    }
+
+    getWithRedirect(url);
+  });
+}
+
+async function ensureYtDlpBinary() {
+  const current = getYtDlpPath();
+  if (current && fs.existsSync(current)) {
+    return current;
+  }
+
+  if (ytDlpDownloadPromise) {
+    return ytDlpDownloadPromise;
+  }
+
+  ytDlpDownloadPromise = (async () => {
+    try {
+      let userDataDir = '';
+      try {
+        userDataDir = app.getPath('userData');
+      } catch (_) {
+        userDataDir = path.join(os.homedir(), '.pulsar-music-player');
+      }
+      const userBinDir = path.join(userDataDir, 'bin');
+      await fs.promises.mkdir(userBinDir, { recursive: true });
+      const isWin = process.platform === 'win32';
+      const binName = isWin ? 'yt-dlp.exe' : 'yt-dlp';
+      const destPath = path.join(userBinDir, binName);
+
+      if (fs.existsSync(destPath)) {
+        return destPath;
+      }
+
+      console.log(`[Pulsar] Downloading yt-dlp standalone binary for ${process.platform}...`);
+      const downloadUrl = isWin
+        ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
+        : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
+
+      await downloadBinaryFile(downloadUrl, destPath);
+
+      if (!isWin) {
+        fs.chmodSync(destPath, 0o755);
+      }
+      console.log('[Pulsar] yt-dlp binary ready at:', destPath);
+      return destPath;
+    } catch (err) {
+      console.error('[Pulsar] Failed to auto-download yt-dlp binary:', err.message);
+      return null;
+    } finally {
+      ytDlpDownloadPromise = null;
+    }
+  })();
+
+  return ytDlpDownloadPromise;
 }
 
 // Helper to resolve node runtime for yt-dlp
@@ -816,7 +937,13 @@ ipcMain.handle('search-online-music', async (event, { query, limit = 20, filter 
 
   // 2. Resilient Fallback: yt-dlp CLI
   try {
-    const ytdlp = getYtDlpPath();
+    let ytdlp = getYtDlpPath();
+    if (!ytdlp) {
+      ytdlp = await ensureYtDlpBinary();
+    }
+    if (!ytdlp) {
+      return { success: false, error: 'yt-dlp binary unavailable', tracks: [] };
+    }
     const nodeRuntime = getNodeRuntime();
     const searchQuery = (query && query.trim()) || 'trending songs hits 2026';
 
@@ -1100,14 +1227,21 @@ function resolveWithDaemon(url) {
   });
 }
 
-function resolveWithCliFallback(url) {
-  const ytdlp = getYtDlpPath();
+async function resolveWithCliFallback(url) {
+  let ytdlp = getYtDlpPath();
+  if (!ytdlp) {
+    ytdlp = await ensureYtDlpBinary();
+  }
+  if (!ytdlp) {
+    return { success: false, error: 'yt-dlp binary unavailable' };
+  }
   const streamArgs = [
     '-g',
     '-f', '140/251/ba/18/b',
     '--no-warnings',
     '--no-playlist',
     '--no-check-certificates',
+    '--force-ipv4',
     '--extractor-args', 'youtube:player_client=android',
     '--socket-timeout', '10',
     url
@@ -1285,27 +1419,44 @@ ipcMain.handle('download-online-track', async (event, trackData) => {
 
     if (isYoutube) {
       // Use yt-dlp to download and convert directly to MP3 with ID3 metadata
-      const ytdlp = getYtDlpPath();
+      let ytdlp = getYtDlpPath();
+      if (!ytdlp) {
+        ytdlp = await ensureYtDlpBinary();
+      }
+      if (!ytdlp) {
+        throw new Error('yt-dlp binary is missing and could not be initialized');
+      }
+
       const ffmpegBin = getFfmpegPath();
       const nodeRuntime = getNodeRuntime();
       const outputTemplate = path.join(downloadDir, `${safeArtist} - ${safeTitle}.%(ext)s`);
       const targetAudioUrl = (trackData.audioUrl || '').replace('music.youtube.com', 'www.youtube.com');
 
-      // Use audio-quality 2 (high-quality VBR ~190kbps), which processes much faster
-      // and consumes far less CPU than quality 0, preventing thermal throttling and laptop freezes
+      // Maximum speed flags: pure audio format stream, multi-threaded 4x fragment downloads, 64k buffers
       const ytdlpArgs = [
-        '-x',
-        '--audio-format', 'mp3',
-        '--audio-quality', '2',
-        '--add-metadata',
+        '-f', 'ba/140/251/18/b',
+        '-N', '4',
+        '--buffer-size', '64K',
+        '--no-mtime',
+        '--force-ipv4',
         '--no-warnings',
         '--no-check-certificates',
-        '--prefer-free-formats',
-        '--extractor-args', 'youtube:player_client=android,web'
+        '--extractor-args', 'youtube:player_client=android'
       ];
+
       if (ffmpegBin) {
-        ytdlpArgs.push('--ffmpeg-location', ffmpegBin);
+        ytdlpArgs.push(
+          '-x',
+          '--audio-format', 'mp3',
+          '--audio-quality', '2',
+          '--add-metadata',
+          '--ffmpeg-location', ffmpegBin
+        );
+      } else {
+        // Fallback if ffmpeg is missing: download native raw audio stream without transcoding failure
+        ytdlpArgs.push('--no-part');
       }
+
       if (nodeRuntime) {
         ytdlpArgs.push('--js-runtimes', `node:${nodeRuntime}`);
       }
@@ -1346,7 +1497,7 @@ ipcMain.handle('download-online-track', async (event, trackData) => {
         const child = execFile(
           cmd,
           args,
-          { timeout: 90000 },
+          { timeout: 90000, maxBuffer: 25 * 1024 * 1024 },
           (err, stdout, stderr) => {
             currentDownloadChild = null;
             if (err) {
@@ -1372,7 +1523,7 @@ ipcMain.handle('download-online-track', async (event, trackData) => {
         if (err.message && err.message.toLowerCase().includes('bot')) {
           console.warn('Retrying download with android player_client...');
           const retryArgs = execArgs.map(arg =>
-            arg === 'youtube:player_client=android,web' ? 'youtube:player_client=android' : arg
+            arg.includes('player_client=') ? 'youtube:player_client=android' : arg
           );
           await executeDownload(execCmd, retryArgs);
         } else {
@@ -1381,33 +1532,38 @@ ipcMain.handle('download-online-track', async (event, trackData) => {
         }
       }
 
-      if (!fs.existsSync(filePath)) {
-        // Look for any mp3 file created
+      // Check exact MP3 first, then any downloaded audio format matching title
+      let matchedFile = null;
+      let matchedPath = null;
+
+      if (fs.existsSync(filePath)) {
+        matchedFile = fileName;
+        matchedPath = filePath;
+      } else {
         const entries = await fs.promises.readdir(downloadDir);
-        const match = entries.find(f => f.toLowerCase().includes(safeTitle.toLowerCase()) && f.endsWith('.mp3'));
-        if (match) {
-          const actualPath = path.join(downloadDir, match);
-          const stat = await fs.promises.stat(actualPath);
-          const buffer = await fs.promises.readFile(actualPath);
-          return {
-            success: true,
-            filePath: actualPath,
-            fileName: match,
-            size: stat.size,
-            buffer: buffer,
-            coverDataUrl: coverDataUrl,
-            localCoverPath: localCoverPath
-          };
+        const audioExts = ['.mp3', '.m4a', '.webm', '.opus', '.ogg', '.mp4'];
+        const cleanTarget = safeTitle.toLowerCase().trim();
+        const candidate = entries.find(f => {
+          const lower = f.toLowerCase();
+          return lower.includes(cleanTarget) && audioExts.some(ext => lower.endsWith(ext));
+        });
+        if (candidate) {
+          matchedFile = candidate;
+          matchedPath = path.join(downloadDir, candidate);
         }
       }
 
-      const stat = await fs.promises.stat(filePath);
-      const buffer = await fs.promises.readFile(filePath);
+      if (!matchedPath || !fs.existsSync(matchedPath)) {
+        throw new Error('Downloaded audio file not found on disk');
+      }
+
+      const stat = await fs.promises.stat(matchedPath);
+      const buffer = await fs.promises.readFile(matchedPath);
 
       return {
         success: true,
-        filePath,
-        fileName,
+        filePath: matchedPath,
+        fileName: matchedFile,
         size: stat.size,
         buffer: buffer,
         coverDataUrl: coverDataUrl,
@@ -1954,6 +2110,11 @@ app.whenReady().then(() => {
   registerMediaKeys();
   initStreamResolver();
   setupLinuxDesktopIntegration();
+
+  // Quietly ensure yt-dlp binary is available in background so user encounters zero delay
+  setTimeout(() => {
+    ensureYtDlpBinary().catch(e => console.warn('[Pulsar] Prewarm yt-dlp notice:', e.message));
+  }, 2000);
 
   // Quiet background update check 3.5 seconds after launch
   setTimeout(async () => {
