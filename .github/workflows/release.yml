@@ -41,6 +41,7 @@ jobs:
         run: npx electron-builder --linux snap --publish never
 
       - name: Locate and Publish to Snap Store
+        continue-on-error: true
         if: env.SNAPCRAFT_STORE_CREDENTIALS != ''
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
