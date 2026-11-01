@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build-and-publish:
     runs-on: ubuntu-22.04
@@ -37,10 +40,29 @@ jobs:
       - name: Build Snap Package
         run: npx electron-builder --linux snap --publish never
 
-      - name: Publish to Snap Store
-        uses: snapcore/action-publish@v1
+      - name: Locate and Publish to Snap Store
+        if: env.SNAPCRAFT_STORE_CREDENTIALS != ''
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        run: |
+          SNAP_FILE=$(ls dist-electron/*.snap | head -n 1)
+          echo "Found snap: $SNAP_FILE"
+          sudo snap install --classic snapcraft
+          echo "$SNAPCRAFT_STORE_CREDENTIALS" | snapcraft login --with -
+          snapcraft upload "$SNAP_FILE" --release stable
+
+      - name: Upload Snap Artifact
+        uses: actions/upload-artifact@v4
         with:
-          snap: dist-electron/pulsar-music-player_*_amd64.snap
-          release: stable
+          name: PulsarMusicPlayer-Linux-Snap-Package
+          path: dist-electron/*.snap
+          if-no-files-found: error
+
+      - name: Release to GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist-electron/*.snap
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
