@@ -48,7 +48,6 @@ jobs:
           SNAP_FILE=$(ls dist-electron/*.snap | head -n 1)
           echo "Found snap: $SNAP_FILE"
           sudo snap install --classic snapcraft
-          echo "$SNAPCRAFT_STORE_CREDENTIALS" | snapcraft login --with -
           snapcraft upload "$SNAP_FILE" --release stable
 
       - name: Upload Snap Artifact
