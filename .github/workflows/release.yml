@@ -21,11 +21,21 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      - name: Setup Linux Binaries (yt-dlp & ffmpeg)
+        run: |
+          mkdir -p bin
+          curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o bin/yt-dlp
+          chmod +x bin/yt-dlp
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          cp /usr/bin/ffmpeg bin/ffmpeg
+          chmod +x bin/ffmpeg
+          ls -lh bin/
+
       - name: Build Web Assets
         run: npm run build
 
       - name: Build Snap Package
-        run: npx electron-builder --linux snap
+        run: npx electron-builder --linux snap --publish never
 
       - name: Publish to Snap Store
         uses: snapcore/action-publish@v1
