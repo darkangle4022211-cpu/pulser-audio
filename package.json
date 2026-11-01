@@ -91,11 +91,7 @@
       "confinement": "strict",
       "grade": "stable",
       "slots": [
-        {
-          "mpris": {
-            "name": "chromium"
-          }
-        }
+        "mpris"
       ],
       "plugs": [
         "default",
