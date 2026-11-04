@@ -26,8 +26,11 @@ protocol.registerSchemesAsPrivileged([
 ]);
 
 // Windows AppUserModelId for native Windows 10/11 notifications & taskbar grouping
+app.name = 'pulsar-music-player';
 if (process.platform === 'win32') {
   app.setAppUserModelId('com.pulsar.musicplayer');
+} else if (process.platform === 'linux') {
+  app.setDesktopName('pulsar-music-player.desktop');
 }
 
 // Power-efficient, whisper-quiet graphics configuration (hardware VSync enabled, <0.5% CPU & GPU idle)
@@ -84,6 +87,34 @@ function createMainWindow() {
   mainWindow.on('resize', () => {
     if (!mainWindow.isAlwaysOnTop()) {
       normalBounds = mainWindow.getBounds();
+    }
+  });
+
+  // Handle Windows native multimedia & Bluetooth earbud WM_APPCOMMAND messages
+  mainWindow.on('app-command', (e, cmd) => {
+    switch (cmd) {
+      case 'media-play':
+      case 'media-pause':
+      case 'media-play-pause':
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('media-key-command', 'play-pause');
+        }
+        break;
+      case 'media-nexttrack':
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('media-key-command', 'next');
+        }
+        break;
+      case 'media-previoustrack':
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('media-key-command', 'previous');
+        }
+        break;
+      case 'media-stop':
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('media-key-command', 'stop');
+        }
+        break;
     }
   });
 
@@ -159,6 +190,79 @@ function createTray() {
   });
 }
 
+let mprisPlayer = null;
+
+function initMprisService() {
+  if (process.platform !== 'linux') return;
+  if (mprisPlayer) return;
+
+  try {
+    const Player = require('mpris-service');
+    mprisPlayer = Player({
+      name: 'pulsar-music-player',
+      identity: 'Pulsar Music Player',
+      supportedInterfaces: ['player']
+    });
+
+    if (mprisPlayer) {
+      mprisPlayer.desktopEntry = 'pulsar-music-player';
+      mprisPlayer.playbackStatus = Player.PLAYBACK_STATUS_STOPPED;
+
+      mprisPlayer.on('playpause', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('media-key-command', 'play-pause');
+        }
+      });
+
+      mprisPlayer.on('play', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('media-key-command', 'play-pause');
+        }
+      });
+
+      mprisPlayer.on('pause', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('media-key-command', 'play-pause');
+        }
+      });
+
+      mprisPlayer.on('next', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('media-key-command', 'next');
+        }
+      });
+
+      mprisPlayer.on('previous', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('media-key-command', 'previous');
+        }
+      });
+
+      mprisPlayer.on('stop', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('media-key-command', 'stop');
+        }
+      });
+
+      mprisPlayer.on('quit', () => {
+        isQuitting = true;
+        app.quit();
+      });
+
+      mprisPlayer.on('raise', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          if (!mainWindow.isVisible()) mainWindow.show();
+          mainWindow.focus();
+        }
+      });
+
+      console.log('[MPRIS] org.mpris.MediaPlayer2.pulsar-music-player successfully registered on D-Bus session bus.');
+    }
+  } catch (err) {
+    console.warn('[MPRIS] Notice: Failed to register MPRIS D-Bus player:', err.message);
+  }
+}
+
 function registerMediaKeys() {
   try {
     globalShortcut.register('MediaPlayPause', () => {
@@ -176,6 +280,9 @@ function registerMediaKeys() {
   } catch (err) {
     console.warn('Global media key registration notice:', err);
   }
+
+  // Register Linux MPRIS D-Bus service for Bluetooth earbud sensor taps and system media controls
+  initMprisService();
 }
 
 // IPC Handlers from Renderer
@@ -211,7 +318,30 @@ ipcMain.on('open-external', (event, url) => {
   }
 });
 
+ipcMain.on('update-playback-status', (event, isPlaying) => {
+  if (mprisPlayer) {
+    try {
+      const Player = require('mpris-service');
+      mprisPlayer.playbackStatus = isPlaying ? Player.PLAYBACK_STATUS_PLAYING : Player.PLAYBACK_STATUS_PAUSED;
+    } catch (_) {}
+  }
+});
+
 ipcMain.on('notify-track-change', (event, info) => {
+  if (mprisPlayer && info) {
+    try {
+      const Player = require('mpris-service');
+      mprisPlayer.metadata = {
+        'mpris:trackid': mprisPlayer.objectPath ? mprisPlayer.objectPath('track/current') : '/org/mpris/MediaPlayer2/CurrentTrack',
+        'xesam:title': info.title || 'Unknown Title',
+        'xesam:artist': [info.artist || 'Unknown Artist'],
+        'xesam:album': info.album || 'Pulsar Music',
+        'mpris:artUrl': info.coverUrl || '',
+        'mpris:length': Math.round((info.duration || 0) * 1e6)
+      };
+      mprisPlayer.playbackStatus = Player.PLAYBACK_STATUS_PLAYING;
+    } catch (_) {}
+  }
   if (Notification.isSupported()) {
     new Notification({
       title: info.title || 'Now Playing',
@@ -587,7 +717,7 @@ async function ensureYtDlpBinary() {
       console.log(`[Pulsar] Downloading yt-dlp standalone binary for ${process.platform}...`);
       const downloadUrl = isWin
         ? 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe'
-        : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp';
+        : 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux';
 
       await downloadBinaryFile(downloadUrl, destPath);
 
@@ -1240,10 +1370,10 @@ async function resolveWithCliFallback(url) {
     '-f', '140/251/ba/18/b',
     '--no-warnings',
     '--no-playlist',
+    '--geo-bypass',
     '--no-check-certificates',
     '--force-ipv4',
-    '--extractor-args', 'youtube:player_client=android',
-    '--socket-timeout', '10',
+    '--socket-timeout', '15',
     url
   ];
 
@@ -1440,15 +1570,17 @@ ipcMain.handle('download-online-track', async (event, trackData) => {
         '--no-mtime',
         '--force-ipv4',
         '--no-warnings',
-        '--no-check-certificates',
-        '--extractor-args', 'youtube:player_client=android'
+        '--no-playlist',
+        '--geo-bypass',
+        '--no-check-certificates'
       ];
 
       if (ffmpegBin) {
         ytdlpArgs.push(
           '-x',
           '--audio-format', 'mp3',
-          '--audio-quality', '2',
+          '--audio-quality', '3',
+          '--postprocessor-args', 'ffmpeg:-threads 0',
           '--add-metadata',
           '--ffmpeg-location', ffmpegBin
         );
@@ -1497,7 +1629,7 @@ ipcMain.handle('download-online-track', async (event, trackData) => {
         const child = execFile(
           cmd,
           args,
-          { timeout: 90000, maxBuffer: 25 * 1024 * 1024 },
+          { timeout: 180000, maxBuffer: 25 * 1024 * 1024 },
           (err, stdout, stderr) => {
             currentDownloadChild = null;
             if (err) {
@@ -1522,9 +1654,10 @@ ipcMain.handle('download-online-track', async (event, trackData) => {
       } catch (err) {
         if (err.message && err.message.toLowerCase().includes('bot')) {
           console.warn('Retrying download with android player_client...');
-          const retryArgs = execArgs.map(arg =>
-            arg.includes('player_client=') ? 'youtube:player_client=android' : arg
-          );
+          const retryArgs = [...execArgs];
+          if (!retryArgs.includes('--extractor-args')) {
+            retryArgs.push('--extractor-args', 'youtube:player_client=android');
+          }
           await executeDownload(execCmd, retryArgs);
         } else {
           console.error('yt-dlp download failed:', err.message);
@@ -2111,19 +2244,19 @@ app.whenReady().then(() => {
   initStreamResolver();
   setupLinuxDesktopIntegration();
 
-  // Quietly ensure yt-dlp binary is available in background so user encounters zero delay
+  // Quietly ensure yt-dlp binary is available in background after UI is completely rendered
   setTimeout(() => {
     ensureYtDlpBinary().catch(e => console.warn('[Pulsar] Prewarm yt-dlp notice:', e.message));
-  }, 2000);
+  }, 8000);
 
-  // Quiet background update check 3.5 seconds after launch
+  // Quiet background update check 12 seconds after launch to ensure zero startup stutter
   setTimeout(async () => {
     try {
       if (app.isPackaged) {
         autoUpdater.checkForUpdates().catch(err => log.warn('Initial background update check:', err.message));
       }
     } catch (_) {}
-  }, 3500);
+  }, 12000);
 
   // Periodic background update check every 2 hours
   setInterval(() => {
@@ -2146,6 +2279,14 @@ app.on('before-quit', () => {
   if (tray && !tray.isDestroyed()) {
     try { tray.destroy(); } catch (e) {}
     tray = null;
+  }
+  if (mprisPlayer) {
+    try {
+      if (mprisPlayer._bus && typeof mprisPlayer._bus.disconnect === 'function') {
+        mprisPlayer._bus.disconnect();
+      }
+    } catch (_) {}
+    mprisPlayer = null;
   }
   globalShortcut.unregisterAll();
 

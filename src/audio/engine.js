@@ -49,18 +49,48 @@ class AudioEngine {
     this.onPlayStateChange = null;
 
     this._bindAudioEvents();
+    this._initDeviceChangeDetection();
+  }
+
+  _initDeviceChangeDetection() {
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.addEventListener === 'function') {
+      navigator.mediaDevices.addEventListener('devicechange', async () => {
+        try {
+          if (this.audioCtx) {
+            if (typeof this.audioCtx.setSinkId === 'function') {
+              await this.audioCtx.setSinkId('');
+            }
+            if (this.audioCtx.state === 'suspended') {
+              await this.audioCtx.resume();
+            }
+          }
+          if (this.audio && typeof this.audio.setSinkId === 'function') {
+            await this.audio.setSinkId('');
+          }
+        } catch (err) {
+          console.warn('[AudioEngine] Device sink migration notice:', err);
+        }
+      });
+    }
   }
 
   _ensureAudioContext() {
     if (this.audioCtx) {
       if (this.audioCtx.state === 'suspended') {
-        this.audioCtx.resume();
+        this.audioCtx.resume().catch(() => {});
       }
       return;
     }
 
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     this.audioCtx = new AudioContextClass({ latencyHint: 'playback' });
+
+    // Auto-resume if OS or Windows WASAPI suspends the audio context on Bluetooth connect/disconnect
+    this.audioCtx.addEventListener('statechange', () => {
+      if (this.audioCtx && this.audioCtx.state === 'suspended' && !this.audio.paused && !this.audio.ended) {
+        this.audioCtx.resume().catch(() => {});
+      }
+    });
 
     // Source
     this.sourceNode = this.audioCtx.createMediaElementSource(this.audio);
@@ -205,6 +235,9 @@ class AudioEngine {
     }
 
     try {
+      if (this.audioCtx && this.audioCtx.state === 'suspended') {
+        await this.audioCtx.resume().catch(() => {});
+      }
       await this.audio.play();
       if (this.onPlayStateChange) this.onPlayStateChange(true);
     } catch (err) {
@@ -218,6 +251,9 @@ class AudioEngine {
 
   play() {
     this._ensureAudioContext();
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
+      this.audioCtx.resume().catch(() => {});
+    }
     return this.audio.play();
   }
 

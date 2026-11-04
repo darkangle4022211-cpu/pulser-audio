@@ -12,8 +12,7 @@ ydl_opts = {
     'format': '140/251/ba/b',
     'quiet': True,
     'no_warnings': True,
-    'extract_flat': False,
-    'extractor_args': {'youtube': {'player_client': ['android']}},
+    'extract_flat': False
 }
 
 try:

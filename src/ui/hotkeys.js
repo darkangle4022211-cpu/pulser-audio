@@ -98,52 +98,36 @@ export function setupHotkeys(handlers) {
       return;
     }
 
+    // Universal Media Keys (support both standard e.code and Bluetooth/driver e.key)
+    if (key === 'MediaPlayPause' || code === 'MediaPlayPause') {
+      e.preventDefault();
+      if (handlers.onMediaPlayPauseTap) {
+        handlers.onMediaPlayPauseTap();
+      } else if (handlers.onPlayPause) {
+        handlers.onPlayPause();
+      }
+      return;
+    }
+
+    if (key === 'MediaTrackNext' || code === 'MediaTrackNext' || key === 'MediaNextTrack') {
+      e.preventDefault();
+      if (handlers.onNext) handlers.onNext();
+      return;
+    }
+
+    if (key === 'MediaTrackPrevious' || code === 'MediaTrackPrevious' || key === 'MediaPreviousTrack') {
+      e.preventDefault();
+      if (handlers.onPrevious) handlers.onPrevious();
+      return;
+    }
+
+    if (key === 'MediaStop' || code === 'MediaStop') {
+      e.preventDefault();
+      if (handlers.onStop) handlers.onStop();
+      return;
+    }
+
     switch (code) {
-
-      case 'KeyM':
-        e.preventDefault();
-        if (handlers.onMute) handlers.onMute();
-        break;
-
-      case 'KeyS':
-        e.preventDefault();
-        if (handlers.onShuffle) handlers.onShuffle();
-        break;
-
-      case 'KeyL':
-        e.preventDefault();
-        if (handlers.onLoop) handlers.onLoop();
-        break;
-
-      case 'KeyF':
-      case 'Slash':
-        e.preventDefault();
-        if (handlers.onSearchFocus) handlers.onSearchFocus();
-        break;
-
-      case 'MediaPlayPause':
-        e.preventDefault();
-        if (handlers.onMediaPlayPauseTap) {
-          handlers.onMediaPlayPauseTap();
-        } else if (handlers.onPlayPause) {
-          handlers.onPlayPause();
-        }
-        break;
-
-      case 'MediaTrackNext':
-        e.preventDefault();
-        if (handlers.onNext) handlers.onNext();
-        break;
-
-      case 'MediaTrackPrevious':
-        e.preventDefault();
-        if (handlers.onPrevious) handlers.onPrevious();
-        break;
-
-      case 'MediaStop':
-        e.preventDefault();
-        if (handlers.onStop) handlers.onStop();
-        break;
 
       case 'KeyQ':
       case 'KeyN':

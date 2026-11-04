@@ -1,8 +1,8 @@
 {
   "name": "pulser audio",
   "repo": "darkangle4022211-cpu/pulser-audio",
-  "version": "1.1.11",
-  "tag": "v1.1.11",
+  "version": "1.1.15",
+  "tag": "v1.1.15",
   "changelog": "• Windows Store & Desktop Packaging Fix: Fixed missing yt-dlp.exe ENOENT error by bundling standalone binaries directly and adding automatic self-healing runtime fallback\\n• Blazing Fast Audio Downloads: Ultra-fast multi-threaded MP3 downloading with concurrent fragment extraction\\n• Stream Resolution Reliability: Direct streaming and playback fixed for all online tracks\\n• Clean Production Library: Purged non-functional sample tracks for a pristine experience\\n• Seamless Over-The-Air Online Updates: Automatic silent updates without manual reinstall\\n\\nIf you are facing a problem, feel free to contact the developer:\\nEmail: hamza.zafar4022211@gmail.com",
   "support": {
     "message": "If you are facing a problem, feel free to contact the developer:",
@@ -10,16 +10,16 @@
   },
   "platforms": {
     "win-setup-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.10/Pulsar-Music-Player-Setup-1.1.10.exe",
-      "sha256": "e0a1d968d4172b51618ff5359f3da891b8ed5c33e09db8d65b1d4e06fdbc9c55",
-      "size": 170605709,
-      "filename": "Pulsar-Music-Player-Setup-1.1.10.exe"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.15/Pulsar-Music-Player-Setup-1.1.15.exe",
+      "sha256": "e3d047ebe5eda2c4129992d9b413b316bf770fcaa151503bd179b1c410ead6b2",
+      "size": 152696621,
+      "filename": "Pulsar-Music-Player-Setup-1.1.15.exe"
     },
     "win-portable-x64": {
-      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.10/Pulsar-Music-Player-Portable-1.1.10.exe",
-      "sha256": "8ba6a03c3aac1f7e264012809322b3dfaa8ae67823139dc5543eb2bb05afd6f1",
-      "size": 170363902,
-      "filename": "Pulsar-Music-Player-Portable-1.1.10.exe"
+      "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.15/Pulsar-Music-Player-Portable-1.1.15.exe",
+      "sha256": "99f2ebd724bf7918cfb988487d3712d77187c9b3907693bd22e86d77d002137c",
+      "size": 152454795,
+      "filename": "Pulsar-Music-Player-Portable-1.1.15.exe"
     },
     "linux-appimage-x64": {
       "url": "https://github.com/darkangle4022211-cpu/pulser-audio/releases/download/v1.1.10/Pulsar-Music-Player.AppImage",

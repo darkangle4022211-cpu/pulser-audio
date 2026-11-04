@@ -31,7 +31,7 @@ cp -r test-tracks dist/ 2>/dev/null || true
 
 # 3. Package with electron-builder for Windows (x64 NSIS installer and portable exe)
 echo "2. Packaging Windows executables with electron-builder..."
-npx electron-builder --win --x64
+npx electron-builder --win --x64 --target nsis --target portable
 
 # 4. Copy to releases and home directory
 mkdir -p "$DIR/releases"

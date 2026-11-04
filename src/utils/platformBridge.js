@@ -724,22 +724,35 @@ class PlatformBridge {
   _setupMediaSessionHandlers() {
     if (typeof navigator === 'undefined' || !navigator.mediaSession) return;
 
-    navigator.mediaSession.setActionHandler('play', () => {
-      const audio = document.querySelector('audio');
-      if (audio && audio.paused) {
-        document.getElementById('playPauseBtn')?.click();
-        navigator.mediaSession.playbackState = 'playing';
+    const handleTap = () => {
+      if (typeof window !== 'undefined' && window.app && window.app.bluetoothMedia) {
+        window.app.bluetoothMedia.handlePlayPauseTap();
+      } else {
+        const audio = document.querySelector('audio');
+        if (audio) {
+          document.getElementById('playPauseBtn')?.click();
+        }
+      }
+    };
+
+    navigator.mediaSession.setActionHandler('play', handleTap);
+    navigator.mediaSession.setActionHandler('pause', handleTap);
+
+    navigator.mediaSession.setActionHandler('previoustrack', () => {
+      if (typeof window !== 'undefined' && window.app && window.app.bluetoothMedia) {
+        window.app.bluetoothMedia.handleDirectPrevious();
+      } else {
+        document.getElementById('prevBtn')?.click();
       }
     });
-    navigator.mediaSession.setActionHandler('pause', () => {
-      const audio = document.querySelector('audio');
-      if (audio && !audio.paused) {
-        document.getElementById('playPauseBtn')?.click();
-        navigator.mediaSession.playbackState = 'paused';
+
+    navigator.mediaSession.setActionHandler('nexttrack', () => {
+      if (typeof window !== 'undefined' && window.app && window.app.bluetoothMedia) {
+        window.app.bluetoothMedia.handleDirectNext();
+      } else {
+        document.getElementById('nextBtn')?.click();
       }
     });
-    navigator.mediaSession.setActionHandler('previoustrack', () => document.getElementById('prevBtn')?.click());
-    navigator.mediaSession.setActionHandler('nexttrack', () => document.getElementById('nextBtn')?.click());
 
     try {
       navigator.mediaSession.setActionHandler('seekto', (details) => {

@@ -131,10 +131,10 @@ async function prepareLinuxBinaries(rootDir) {
   const ffmpegPath = path.join(binDir, 'ffmpeg');
 
   if (!fs.existsSync(ytdlpPath)) {
-    console.log('[prepare_binaries] Downloading yt-dlp for Linux...');
-    await downloadFile('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp', ytdlpPath);
+    console.log('[prepare_binaries] Downloading yt-dlp standalone binary for Linux...');
+    await downloadFile('https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux', ytdlpPath);
     try { fs.chmodSync(ytdlpPath, 0o755); } catch (_) {}
-    console.log('[prepare_binaries] Downloaded yt-dlp for Linux successfully.');
+    console.log('[prepare_binaries] Downloaded yt-dlp standalone for Linux successfully.');
   } else {
     console.log('[prepare_binaries] Linux yt-dlp already present.');
   }

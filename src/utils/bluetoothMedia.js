@@ -23,7 +23,10 @@ export class BluetoothMediaManager {
     // Multi-tap detection state
     this.tapCount = 0;
     this.tapTimer = null;
-    this.TAP_WINDOW_MS = 240; // Fast responsive window for rapid double and triple taps
+    this.TAP_WINDOW_MS = 380; // Reliable window for Bluetooth earbud sensor double and triple taps
+    this.lastTapTimestamp = 0;
+    this.lastDirectNextTimestamp = 0;
+    this.lastDirectPrevTimestamp = 0;
 
     this._initMediaSession();
     this._initIPC();
@@ -34,6 +37,13 @@ export class BluetoothMediaManager {
    * Accurately detects single, double, or triple taps within the time window.
    */
   handlePlayPauseTap() {
+    const now = Date.now();
+    // Ignore duplicate events delivered within 120ms for the same physical tap from multiple OS layers
+    if (this.lastTapTimestamp && (now - this.lastTapTimestamp) < 120) {
+      return;
+    }
+    this.lastTapTimestamp = now;
+
     this.tapCount++;
 
     if (this.tapTimer) {
@@ -70,6 +80,12 @@ export class BluetoothMediaManager {
    * Direct AVRCP / Hardware Forward (Next Track)
    */
   handleDirectNext() {
+    const now = Date.now();
+    if (this.lastDirectNextTimestamp && (now - this.lastDirectNextTimestamp) < 250) {
+      return;
+    }
+    this.lastDirectNextTimestamp = now;
+
     this._cancelTapTimer();
     this.showFeedback('⏭ Forward (Next Song)');
     this.onNext('direct-next');
@@ -79,6 +95,12 @@ export class BluetoothMediaManager {
    * Direct AVRCP / Hardware Backward (Previous Track)
    */
   handleDirectPrevious() {
+    const now = Date.now();
+    if (this.lastDirectPrevTimestamp && (now - this.lastDirectPrevTimestamp) < 250) {
+      return;
+    }
+    this.lastDirectPrevTimestamp = now;
+
     this._cancelTapTimer();
     this.showFeedback('⏮ Backward (Previous Song)');
     this.onPrevious('direct-previous');
@@ -159,6 +181,8 @@ export class BluetoothMediaManager {
       try {
         nativeApi.onMediaKey((cmd) => {
           switch (cmd) {
+            case 'play':
+            case 'pause':
             case 'play-pause':
               this.handlePlayPauseTap();
               break;
@@ -209,11 +233,20 @@ export class BluetoothMediaManager {
    * Update playback state ('playing' | 'paused')
    */
   updatePlaybackState(isPlaying) {
-    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
-    try {
-      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-    } catch (err) {
-      console.warn('Failed to update MediaSession playback state:', err);
+    if (typeof navigator !== 'undefined' && ('mediaSession' in navigator)) {
+      try {
+        navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+      } catch (err) {
+        console.warn('Failed to update MediaSession playback state:', err);
+      }
+    }
+    if (typeof window !== 'undefined') {
+      const nativeApi = window.electronAPI || window.pulsarNative;
+      if (nativeApi && typeof nativeApi.updatePlaybackStatus === 'function') {
+        try {
+          nativeApi.updatePlaybackStatus(isPlaying);
+        } catch (_) {}
+      }
     }
   }
 

@@ -5,6 +5,7 @@ const api = {
   maximize: () => ipcRenderer.send('window-maximize'),
   close: () => ipcRenderer.send('window-close'),
   notifyTrackChange: (info) => ipcRenderer.send('notify-track-change', info),
+  updatePlaybackStatus: (isPlaying) => ipcRenderer.send('update-playback-status', isPlaying),
   selectAudioFiles: () => ipcRenderer.invoke('select-audio-files'),
   selectAudioFolder: () => ipcRenderer.invoke('select-audio-folder'),
   getPathForFile: (file) => {

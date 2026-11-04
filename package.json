@@ -1,6 +1,6 @@
 {
   "name": "pulsar-music-player",
-  "version": "1.1.11",
+  "version": "1.1.15",
   "homepage": "https://github.com/pulsar/player",
   "description": "Premium 100% Offline MP3 Music Player for Linux with Custom Playlists, 10-Band EQ, and Audio Visualizer",
   "main": "electron/main.cjs",
@@ -48,20 +48,21 @@
       "dist/**/*",
       "electron/**/*",
       "build/**/*",
-      "bin/**/*",
       "package.json"
     ],
     "asarUnpack": [
-      "electron/stream_resolver.py",
-      "bin/**/*"
-    ],
-    "extraResources": [
-      {
-        "from": "bin",
-        "to": "bin"
-      }
+      "electron/stream_resolver.py"
     ],
     "linux": {
+      "extraResources": [
+        {
+          "from": "bin",
+          "to": "bin",
+          "filter": [
+            "!win/**"
+          ]
+        }
+      ],
       "target": [
         "AppImage"
       ],
@@ -90,9 +91,6 @@
     "snap": {
       "confinement": "strict",
       "grade": "stable",
-      "slots": [
-        "mpris"
-      ],
       "plugs": [
         "default",
         "removable-media",
@@ -100,6 +98,12 @@
       ]
     },
     "win": {
+      "extraResources": [
+        {
+          "from": "bin/win",
+          "to": "bin/win"
+        }
+      ],
       "target": [
         "nsis",
         "portable",
@@ -122,7 +126,8 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Pulsar Music Player",
-      "artifactName": "${productName} Setup ${version}.${ext}"
+      "artifactName": "${productName} Setup ${version}.${ext}",
+      "differentialPackage": true
     },
     "portable": {
       "artifactName": "${productName} Portable ${version}.${ext}"
@@ -130,6 +135,7 @@
   },
   "dependencies": {
     "electron-log": "^5.4.4",
-    "electron-updater": "^6.8.9"
+    "electron-updater": "^6.8.9",
+    "mpris-service": "^2.1.2"
   }
 }
