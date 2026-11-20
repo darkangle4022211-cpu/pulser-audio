@@ -36,6 +36,7 @@ if (process.platform === 'win32') {
 // Power-efficient, whisper-quiet graphics configuration (hardware VSync enabled, <0.5% CPU & GPU idle)
 app.commandLine.appendSwitch('no-sandbox');
 app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+app.commandLine.appendSwitch('enable-features', 'HardwareMediaKeyHandling,MediaSessionService');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
 
@@ -790,7 +791,8 @@ async function searchYouTubeMusic(query, limit = 20, filter = 'songs') {
   let response = await fetch('https://music.youtube.com/youtubei/v1/search?prettyPrint=false', {
     method: 'POST',
     headers,
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(4500)
   }).catch(() => null);
 
   if (!response || !response.ok) {
@@ -801,7 +803,8 @@ async function searchYouTubeMusic(query, limit = 20, filter = 'songs') {
       body: JSON.stringify({
         context: body.context,
         query: searchQuery
-      })
+      }),
+      signal: AbortSignal.timeout(3500)
     }).catch(() => null);
   }
 
@@ -1365,24 +1368,29 @@ async function resolveWithCliFallback(url) {
   if (!ytdlp) {
     return { success: false, error: 'yt-dlp binary unavailable' };
   }
+  const nodeRuntime = getNodeRuntime();
   const streamArgs = [
     '-g',
-    '-f', '140/251/ba/18/b',
+    '-f', 'ba/140/251/18/b',
     '--no-warnings',
     '--no-playlist',
     '--geo-bypass',
     '--no-check-certificates',
     '--force-ipv4',
-    '--socket-timeout', '15',
-    url
+    '--socket-timeout', '10',
+    '--extractor-args', 'youtube:player_client=android'
   ];
+  if (nodeRuntime) {
+    streamArgs.push('--js-runtimes', `node:${nodeRuntime}`);
+  }
+  streamArgs.push(url);
 
   return new Promise((resolve) => {
     execFile(
       ytdlp,
       streamArgs,
       {
-        timeout: 30000,
+        timeout: 18000,
         windowsHide: true,
         maxBuffer: 10 * 1024 * 1024
       },
@@ -1562,17 +1570,18 @@ ipcMain.handle('download-online-track', async (event, trackData) => {
       const outputTemplate = path.join(downloadDir, `${safeArtist} - ${safeTitle}.%(ext)s`);
       const targetAudioUrl = (trackData.audioUrl || '').replace('music.youtube.com', 'www.youtube.com');
 
-      // Maximum speed flags: pure audio format stream, multi-threaded 4x fragment downloads, 64k buffers
+      // Maximum speed flags: pure audio format stream, multi-threaded 8x fragment downloads, 128k buffers
       const ytdlpArgs = [
         '-f', 'ba/140/251/18/b',
-        '-N', '4',
-        '--buffer-size', '64K',
+        '-N', '8',
+        '--buffer-size', '128K',
         '--no-mtime',
         '--force-ipv4',
         '--no-warnings',
         '--no-playlist',
         '--geo-bypass',
-        '--no-check-certificates'
+        '--no-check-certificates',
+        '--extractor-args', 'youtube:player_client=android'
       ];
 
       if (ffmpegBin) {

@@ -4039,17 +4039,28 @@ class App {
 
     this._updateTasteBannerUI();
 
-    if (this.flowLoadingSpinner) this.flowLoadingSpinner.style.display = 'flex';
-    if (this.flowTracksTable) this.flowTracksTable.style.display = 'none';
+    const seedTracks = tasteEngine.getTopEngagedTracks(this.tracks, 5);
+    const top = tasteEngine.getTopArtists(3);
+
+    // Instant Zero-Latency Render: display cached or curated tracks immediately
+    if (tab === 'for-you') {
+      if (this.flowSectionTitle) this.flowSectionTitle.textContent = 'Quick Picks';
+      if (this.flowSectionMeta) this.flowSectionMeta.textContent = 'Recommended songs based on your taste & vibe';
+      this.currentQuickPicks = (this.flowTracks && this.flowTracks.length > 0) ? this.flowTracks.slice(0, 16) : DEFAULT_TRENDING_TRACKS.slice(0, 16);
+      this._renderQuickPicks(this.currentQuickPicks);
+      this._renderListenAgain();
+      this._renderFeaturedPlaylists(seedTracks);
+      if (this.flowTracksTable) this.flowTracksTable.style.display = 'table';
+      if (this.flowLoadingSpinner) this.flowLoadingSpinner.style.display = 'none';
+    } else {
+      if (this.flowLoadingSpinner) this.flowLoadingSpinner.style.display = 'flex';
+      if (this.flowTracksTable) this.flowTracksTable.style.display = 'none';
+    }
 
     try {
       let tracks = [];
-      const seedTracks = tasteEngine.getTopEngagedTracks(this.tracks, 5);
-      const top = tasteEngine.getTopArtists(3);
 
       if (tab === 'for-you') {
-        if (this.flowSectionTitle) this.flowSectionTitle.textContent = 'Quick Picks';
-        if (this.flowSectionMeta) this.flowSectionMeta.textContent = 'Recommended songs based on your taste & vibe';
         tracks = await onlineMusic.getSongVibeRecommendations(seedTracks, top, 24);
         if (!tracks || tracks.length === 0) {
           tracks = DEFAULT_TRENDING_TRACKS;

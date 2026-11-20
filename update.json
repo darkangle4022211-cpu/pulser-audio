@@ -1,8 +1,8 @@
 {
   "name": "pulser audio",
   "repo": "darkangle4022211-cpu/pulser-audio",
-  "version": "1.1.15",
-  "tag": "v1.1.15",
+  "version": "1.1.16",
+  "tag": "v1.1.16",
   "changelog": "• Windows Store & Desktop Packaging Fix: Fixed missing yt-dlp.exe ENOENT error by bundling standalone binaries directly and adding automatic self-healing runtime fallback\\n• Blazing Fast Audio Downloads: Ultra-fast multi-threaded MP3 downloading with concurrent fragment extraction\\n• Stream Resolution Reliability: Direct streaming and playback fixed for all online tracks\\n• Clean Production Library: Purged non-functional sample tracks for a pristine experience\\n• Seamless Over-The-Air Online Updates: Automatic silent updates without manual reinstall\\n\\nIf you are facing a problem, feel free to contact the developer:\\nEmail: hamza.zafar4022211@gmail.com",
   "support": {
     "message": "If you are facing a problem, feel free to contact the developer:",

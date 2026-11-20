@@ -38,8 +38,8 @@ export class BluetoothMediaManager {
    */
   handlePlayPauseTap() {
     const now = Date.now();
-    // Ignore duplicate events delivered within 120ms for the same physical tap from multiple OS layers
-    if (this.lastTapTimestamp && (now - this.lastTapTimestamp) < 120) {
+    // Ignore duplicate events delivered within 50ms from simultaneous OS event hooks
+    if (this.lastTapTimestamp && (now - this.lastTapTimestamp) < 50) {
       return;
     }
     this.lastTapTimestamp = now;
@@ -81,7 +81,7 @@ export class BluetoothMediaManager {
    */
   handleDirectNext() {
     const now = Date.now();
-    if (this.lastDirectNextTimestamp && (now - this.lastDirectNextTimestamp) < 250) {
+    if (this.lastDirectNextTimestamp && (now - this.lastDirectNextTimestamp) < 100) {
       return;
     }
     this.lastDirectNextTimestamp = now;
@@ -96,7 +96,7 @@ export class BluetoothMediaManager {
    */
   handleDirectPrevious() {
     const now = Date.now();
-    if (this.lastDirectPrevTimestamp && (now - this.lastDirectPrevTimestamp) < 250) {
+    if (this.lastDirectPrevTimestamp && (now - this.lastDirectPrevTimestamp) < 100) {
       return;
     }
     this.lastDirectPrevTimestamp = now;
@@ -130,11 +130,13 @@ export class BluetoothMediaManager {
 
     try {
       navigator.mediaSession.setActionHandler('play', () => {
-        this.handlePlayPauseTap();
+        this._cancelTapTimer();
+        this.onPlayPause('media-session-play');
       });
 
       navigator.mediaSession.setActionHandler('pause', () => {
-        this.handlePlayPauseTap();
+        this._cancelTapTimer();
+        this.onPlayPause('media-session-pause');
       });
 
       navigator.mediaSession.setActionHandler('nexttrack', () => {
